@@ -6,7 +6,7 @@
 - Planned clients: React + TypeScript + Vite PC web app; native SwiftUI iOS app with iOS 16 minimum; free Node-based local relay/companion.
 - Core behavior: manual expenses, CSV/PDF import and review, categorization, correction-driven personal rules, weekly/monthly/custom summaries, encrypted local vaults, offline operation, and foreground phone-away/PC-later synchronization.
 - Current implementation state: specification, plan, research, data model, contracts, quickstart, checklist, and 96 implementation tasks exist under `specs/001-local-expense-tracker/`; application source code has not been implemented yet.
-- Repository state: Git is initialized on `main`, `origin` points to `https://github.com/connorpaps/Expense-Tracker.git`, the remote starter README history was merged cleanly, and the initial project/memory commit is `7b4c70d` pending push.
+- Repository state: Git is initialized on `main`, `origin` points to `https://github.com/connorpaps/Expense-Tracker.git`, the remote starter README history was merged cleanly, and local `main` matches `origin/main` at verified commit `8d01a65`.
 
 ## Architecture and constraints
 
@@ -28,6 +28,7 @@
 - Validation: `bash -n .githooks/post-commit scripts/setup-memory-hooks.sh scripts/machine-sync.sh`; `bash scripts/machine-sync.sh`; `git check-ignore -v docs/activity-watch.log docs/.last-machine`
 - Machine synchronization: `bash scripts/machine-sync.sh`
 - Optional file watcher: `node scripts/memory-watcher.mjs`
+- Session closeout validation: `git status --short --branch`; compare `git rev-parse HEAD` with `git ls-remote --heads origin main`.
 
 ## Speckit artifacts and next step
 

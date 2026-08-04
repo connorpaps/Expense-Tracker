@@ -23,7 +23,8 @@ The project is currently specification-first: no application source code has bee
 ### 3. Memory system setup
 
 - Created the cross-session memory protocol files from `MEMORY_SETUP.md`.
-- Git was initialized on `main`; `origin` is `https://github.com/connorpaps/Expense-Tracker.git`; the remote starter README commit was merged cleanly; initial local commit `7b4c70d` was created and the post-commit hook fired successfully.
+- Git was initialized on `main`; `origin` is `https://github.com/connorpaps/Expense-Tracker.git`; the remote starter README commit was merged cleanly; the post-commit hook fired successfully.
+- The project and memory state was committed and pushed without force-pushing. Local `main` matches `origin/main` at verified commit `8d01a65`.
 
 ## Current repository state
 
@@ -41,12 +42,20 @@ The project is currently specification-first: no application source code has bee
 - Memory files created from the supplied replication guide.
 - Speckit artifacts validated previously: no unresolved clarification markers; six constitution gates pass; tasks T001–T096 are sequential and format-valid.
 - Memory verification passed: required files exist, `.githooks` is active, shell syntax checks pass, machine sync runs cleanly, ignored local markers are configured, and no secret-like or personal statement files were found.
-- Pending in this session: final activity-log commit, GitHub push, and remote verification.
+- Final Git verification passed: local `main` equals `origin/main` at `8d01a65`, the working tree is clean, the remote URL is correct, and activity-log entries are present.
+
+## Work completed this session (2026-08-04)
+
+### 4. Session closeout and durable handoff
+
+- Corrected stale memory statements that still described the GitHub push as pending.
+- Recorded the verified clean repository state and exact continuation point for the next session.
+- No application or Speckit design files were changed during closeout.
 
 ## Prioritized next steps
 
-1. Commit the generated activity-log update and push `main` to `https://github.com/connorpaps/Expense-Tracker.git`.
-2. Begin `/speckit.implement` with T001, then complete the foundational checkpoint.
+1. At the next session, read `handoff.md` and `knowledge.md`, run the bootstrap and machine-sync checks, then begin `/speckit.implement`.
+2. Start with T001 and proceed through the Phase 1/2 foundation checkpoints in `specs/001-local-expense-tracker/tasks.md`.
 3. Keep `handoff.md` and `knowledge.md` current after each substantial implementation change.
 
 ## Session handoff checklist
