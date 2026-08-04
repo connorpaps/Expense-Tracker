@@ -23,7 +23,7 @@ The project is currently specification-first: no application source code has bee
 ### 3. Memory system setup
 
 - Created the cross-session memory protocol files from `MEMORY_SETUP.md`.
-- Git and GitHub initialization/remote setup are being completed as part of this session.
+- Git was initialized on `main`; `origin` is `https://github.com/connorpaps/Expense-Tracker.git`; the remote starter README commit was merged cleanly; initial local commit `7b4c70d` was created and the post-commit hook fired successfully.
 
 ## Current repository state
 
@@ -40,14 +40,14 @@ The project is currently specification-first: no application source code has bee
 
 - Memory files created from the supplied replication guide.
 - Speckit artifacts validated previously: no unresolved clarification markers; six constitution gates pass; tasks T001–T096 are sequential and format-valid.
-- Pending in this session: Git hook, test-commit, machine-sync, GitHub remote, and push verification.
+- Memory verification passed: required files exist, `.githooks` is active, shell syntax checks pass, machine sync runs cleanly, ignored local markers are configured, and no secret-like or personal statement files were found.
+- Pending in this session: final activity-log commit, GitHub push, and remote verification.
 
 ## Prioritized next steps
 
-1. Complete Git initialization and safely connect `origin` to `https://github.com/connorpaps/Expense-Tracker.git`.
-2. Run the memory verification checklist and commit the memory system plus project artifacts.
-3. Push `main` to GitHub after authentication and remote-history checks.
-4. Begin `/speckit.implement` with T001, then the foundational checkpoint.
+1. Commit the generated activity-log update and push `main` to `https://github.com/connorpaps/Expense-Tracker.git`.
+2. Begin `/speckit.implement` with T001, then complete the foundational checkpoint.
+3. Keep `handoff.md` and `knowledge.md` current after each substantial implementation change.
 
 ## Session handoff checklist
 
