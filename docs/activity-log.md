@@ -635,3 +635,10 @@ Raw per-save events, if the optional watcher is running, go to `docs/activity-wa
   - specs/001-local-expense-tracker/research.md
   - specs/001-local-expense-tracker/spec.md
   - specs/001-local-expense-tracker/tasks.md
+
+## 2026-08-04 17:00 — `2fd2bab`
+**docs: record memory setup and project handoff**
+
+  - docs/activity-log.md
+  - handoff.md
+  - knowledge.md
