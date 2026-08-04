@@ -642,3 +642,9 @@ Raw per-save events, if the optional watcher is running, go to `docs/activity-wa
   - docs/activity-log.md
   - handoff.md
   - knowledge.md
+
+## 2026-08-04 17:06 — `7eae09b`
+**docs: close session with implementation handoff**
+
+  - handoff.md
+  - knowledge.md
