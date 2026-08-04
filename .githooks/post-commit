@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Auto-memory hook: appends a dated entry (commit hash, message, changed files)
+# to docs/activity-log.md after every commit.
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+LOG="$ROOT/docs/activity-log.md"
+mkdir -p "$(dirname "$LOG")"
+
+CHANGED="$(git diff-tree --root -m --first-parent --no-commit-id --name-only -r HEAD)"
+if [ "$CHANGED" = "docs/activity-log.md" ]; then
+  exit 0
+fi
+
+HASH="$(git rev-parse --short HEAD)"
+MSG="$(git log -1 --pretty=%s)"
+DATE="$(date '+%Y-%m-%d %H:%M')"
+
+{
+  echo ""
+  echo "## $DATE — \`$HASH\`"
+  echo "**$MSG**"
+  echo ""
+  echo "$CHANGED" | sed 's/^/  - /'
+} >> "$LOG"

@@ -1,0 +1,4 @@
+# Force LF line endings on shell scripts; CRLF breaks hooks and shebangs.
+*.sh text eol=lf
+.githooks/* text eol=lf
+scripts/*.mjs text eol=lf
