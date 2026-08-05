@@ -1,0 +1,37 @@
+{
+  "fixture": "phone-away-backlog",
+  "description": "Two expenses created on iOS while away from the PC, durable across restarts, then exchanged in one foreground batch.",
+  "vault_id": "vault-demo-1",
+  "device_id": "ios-phone-1",
+  "queued_mutations": [
+    {
+      "mutation_id": "mut-ios-1001",
+      "vault_id": "vault-demo-1",
+      "device_id": "ios-phone-1",
+      "clock": { "lamport": 1, "vector": { "ios-phone-1": 1 } },
+      "entity_type": "transaction",
+      "entity_id": "tx-ios-1001",
+      "operation": "create",
+      "base_version": 0,
+      "changed_fields": ["occurred_on", "merchant_display", "amount_minor", "currency"],
+      "ciphertext": "AES-GCM-ENVELOPE-PLACEHOLDER"
+    },
+    {
+      "mutation_id": "mut-ios-1002",
+      "vault_id": "vault-demo-1",
+      "device_id": "ios-phone-1",
+      "clock": { "lamport": 2, "vector": { "ios-phone-1": 2 } },
+      "entity_type": "transaction",
+      "entity_id": "tx-ios-1002",
+      "operation": "create",
+      "base_version": 0,
+      "changed_fields": ["occurred_on", "merchant_display", "amount_minor", "currency"],
+      "ciphertext": "AES-GCM-ENVELOPE-PLACEHOLDER"
+    }
+  ],
+  "expected_after_drain": {
+    "applied_exactly_once": true,
+    "pc_history_ids": ["tx-ios-1001", "tx-ios-1002"],
+    "pending_after": 0
+  }
+}

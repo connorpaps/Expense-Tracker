@@ -1,0 +1,9 @@
+{
+  "fixture": "empty.csv",
+  "file_type": "csv",
+  "profile": "unknown",
+  "total_rows": 0,
+  "recognized_rows": 0,
+  "valid_rows": [],
+  "error_rows": []
+}

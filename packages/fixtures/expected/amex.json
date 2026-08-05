@@ -1,0 +1,15 @@
+{
+  "fixture": "amex.csv",
+  "file_type": "csv",
+  "profile": "amex",
+  "total_rows": 5,
+  "recognized_rows": 5,
+  "valid_rows": [
+    { "source_row_number": 1, "occurred_on": "2026-07-01", "merchant_display": "Starbucks", "amount_minor": -650, "currency": "USD" },
+    { "source_row_number": 2, "occurred_on": "2026-07-02", "merchant_display": "Shell Oil -Gas", "amount_minor": -4500, "currency": "USD" },
+    { "source_row_number": 3, "occurred_on": "2026-07-03", "merchant_display": "Netflix.Com", "amount_minor": -1599, "currency": "USD" },
+    { "source_row_number": 4, "occurred_on": "2026-07-04", "merchant_display": "Payment - Thank You", "amount_minor": 20000, "currency": "USD" },
+    { "source_row_number": 5, "occurred_on": "2026-07-05", "merchant_display": "Uber *Trip", "amount_minor": -1234, "currency": "USD" }
+  ],
+  "error_rows": []
+}

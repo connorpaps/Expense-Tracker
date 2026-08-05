@@ -1,0 +1,14 @@
+{
+  "fixture": "us-bank.csv",
+  "file_type": "csv",
+  "profile": "us_bank",
+  "total_rows": 4,
+  "recognized_rows": 4,
+  "valid_rows": [
+    { "source_row_number": 1, "occurred_on": "2026-07-01", "merchant_display": "Starbucks", "amount_minor": -650, "currency": "USD" },
+    { "source_row_number": 2, "occurred_on": "2026-07-02", "merchant_display": "Gas Station", "amount_minor": -3800, "currency": "USD" },
+    { "source_row_number": 3, "occurred_on": "2026-07-03", "merchant_display": "Netflix.Com", "amount_minor": -1599, "currency": "USD" },
+    { "source_row_number": 4, "occurred_on": "2026-07-04", "merchant_display": "Direct Deposit Payroll", "amount_minor": 240000, "currency": "USD" }
+  ],
+  "error_rows": []
+}

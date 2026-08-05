@@ -1,0 +1,14 @@
+{
+  "fixture": "capital-one.csv",
+  "file_type": "csv",
+  "profile": "capital_one",
+  "total_rows": 4,
+  "recognized_rows": 4,
+  "valid_rows": [
+    { "source_row_number": 1, "occurred_on": "2026-07-01", "merchant_display": "Amazon Mktplace", "amount_minor": -2599, "currency": "USD" },
+    { "source_row_number": 2, "occurred_on": "2026-07-03", "merchant_display": "Uber *Pop", "amount_minor": -875, "currency": "USD" },
+    { "source_row_number": 3, "occurred_on": "2026-07-05", "merchant_display": "Whole Foods Market", "amount_minor": -5410, "currency": "USD" },
+    { "source_row_number": 4, "occurred_on": "2026-07-07", "merchant_display": "Refund - Zappos", "amount_minor": 1995, "currency": "USD" }
+  ],
+  "error_rows": []
+}

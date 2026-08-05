@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://expense-tracker.local/schemas/mutation.schema.json",
+  "title": "MutationEnvelope",
+  "type": "object",
+  "required": ["mutation_id", "vault_id", "device_id", "clock", "entity_type", "entity_id", "operation", "base_version", "changed_fields", "ciphertext"],
+  "properties": {
+    "mutation_id": { "type": "string", "minLength": 1 },
+    "vault_id": { "type": "string", "minLength": 1 },
+    "device_id": { "type": "string", "minLength": 1 },
+    "clock": {
+      "type": "object",
+      "required": ["lamport", "vector"],
+      "properties": {
+        "lamport": { "type": "integer", "minimum": 0 },
+        "vector": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } }
+      },
+      "additionalProperties": false
+    },
+    "entity_type": { "enum": ["vault", "category", "transaction", "statement_import", "categorization_rule", "conflict"] },
+    "entity_id": { "type": "string", "minLength": 1 },
+    "operation": { "enum": ["create", "update", "delete", "restore", "merge", "import_commit", "rule_update", "category_update"] },
+    "base_version": { "type": "integer", "minimum": 0 },
+    "changed_fields": { "type": "array", "items": { "type": "string" } },
+    "ciphertext": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://expense-tracker.local/schemas/import.schema.json",
+  "title": "StatementImport",
+  "type": "object",
+  "required": [
+    "import_id",
+    "vault_id",
+    "file_name",
+    "file_type",
+    "file_size_bytes",
+    "source_fingerprint",
+    "status",
+    "total_rows",
+    "recognized_rows",
+    "warning_count",
+    "error_count",
+    "created_at"
+  ],
+  "properties": {
+    "import_id": { "type": "string", "minLength": 1 },
+    "vault_id": { "type": "string", "minLength": 1 },
+    "file_name": { "type": "string" },
+    "file_type": { "enum": ["csv", "pdf"] },
+    "file_size_bytes": { "type": "integer", "minimum": 1 },
+    "source_fingerprint": { "type": "string", "minLength": 1 },
+    "bank_profile": { "type": ["string", "null"] },
+    "parser_version": { "type": "string" },
+    "status": { "enum": ["queued", "parsing", "review", "committed", "cancelled", "failed", "partial"] },
+    "total_rows": { "type": "integer", "minimum": 0 },
+    "recognized_rows": { "type": "integer", "minimum": 0 },
+    "warning_count": { "type": "integer", "minimum": 0 },
+    "error_count": { "type": "integer", "minimum": 0 },
+    "storage_reference": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": ["string", "null"] },
+    "deleted_at": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}

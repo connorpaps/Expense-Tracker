@@ -1,0 +1,22 @@
+{
+  "name": "@expense-tracker/fixtures",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schemas/*": "./schemas/*.json",
+    "./statements/*": "./statements/*",
+    "./expected/*": "./expected/*",
+    "./sync/*": "./sync/*",
+    "./demo/*": "./demo/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --project fixtures"
+  },
+  "dependencies": {
+    "@expense-tracker/contracts": "*",
+    "@expense-tracker/domain": "*"
+  }
+}

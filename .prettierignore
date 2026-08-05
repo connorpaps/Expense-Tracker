@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+coverage
+.vite
+.build
+DerivedData
+apps/ios
+docs
+specs
+scripts
+package-lock.json

@@ -1,0 +1,14 @@
+{
+  "fixture": "chase.csv",
+  "file_type": "csv",
+  "profile": "chase",
+  "total_rows": 4,
+  "recognized_rows": 4,
+  "valid_rows": [
+    { "source_row_number": 1, "occurred_on": "2026-07-01", "merchant_display": "Shell Oil 55555555", "amount_minor": -4500, "currency": "USD" },
+    { "source_row_number": 2, "occurred_on": "2026-07-02", "merchant_display": "Amazon Mktplace Amzn.Com/Bill", "amount_minor": -2599, "currency": "USD" },
+    { "source_row_number": 3, "occurred_on": "2026-07-04", "merchant_display": "Trader Joe's", "amount_minor": -3840, "currency": "USD" },
+    { "source_row_number": 4, "occurred_on": "2026-07-06", "merchant_display": "Payment Thank You", "amount_minor": 15000, "currency": "USD" }
+  ],
+  "error_rows": []
+}

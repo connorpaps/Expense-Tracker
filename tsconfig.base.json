@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "verbatimModuleSyntax": true,
+    "baseUrl": ".",
+    "paths": {
+      "@expense-tracker/domain": ["packages/domain/src/index.ts"],
+      "@expense-tracker/contracts": ["packages/contracts/src/index.ts"],
+      "@expense-tracker/parsing": ["packages/parsing/src/index.ts"],
+      "@expense-tracker/fixtures": ["packages/fixtures/src/index.ts"],
+      "@expense-tracker/design-tokens": ["packages/design-tokens/src/index.ts"]
+    }
+  }
+}

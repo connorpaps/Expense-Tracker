@@ -1,0 +1,12 @@
+{
+  "fixture": "credits.csv",
+  "file_type": "csv",
+  "profile": "unknown",
+  "total_rows": 2,
+  "recognized_rows": 2,
+  "valid_rows": [
+    { "source_row_number": 1, "occurred_on": "2026-07-01", "merchant_display": "Refund - Zappos", "amount_minor": 2500, "currency": "USD" },
+    { "source_row_number": 2, "occurred_on": "2026-07-02", "merchant_display": "Cash Back Reward", "amount_minor": 500, "currency": "USD" }
+  ],
+  "error_rows": []
+}

@@ -1,0 +1,6 @@
+Transaction Date,Clearing Date,Description,Merchant,Category,Type,Amount
+07/01/2026,07/02/2026,UBER *TRIP,UBER,Transportation,Purchase,-12.34
+07/02/2026,07/03/2026,APPLE.COM/BILL,Apple,Entertainment,Purchase,-9.99
+07/03/2026,07/04/2026,CVS PHARMACY #5123,CVS,Health,Purchase,-23.45
+07/05/2026,07/06/2026,STARBUCKS,Starbucks,Food & Dining,Purchase,-6.50
+07/06/2026,07/07/2026,REFUND FROM AMAZON,Amazon,Shopping,Refund,18.20

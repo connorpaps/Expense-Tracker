@@ -1,0 +1,38 @@
+name: ExpenseTracker
+options:
+  bundleIdPrefix: com.expensetracker
+  deploymentTarget:
+    iOS: "16.0"
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "5.7"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    TARGETED_DEVICE_FAMILY: "1"
+targets:
+  ExpenseTracker:
+    type: application
+    platform: iOS
+    sources:
+      - path: ExpenseTracker
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.expensetracker.app
+        INFOPLIST_KEY_CFBundleDisplayName: Expense Tracker
+        INFOPLIST_KEY_NSCameraUsageDescription: "Expense Tracker does not require camera access."
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Expense Tracker uses your local network only when you pair with your own relay."
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
+        SWIFT_EMIT_LOC_STRINGS: true
+  ExpenseTrackerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ExpenseTrackerTests
+    resources:
+      - path: ../../packages/fixtures/expected
+      - path: ../../packages/fixtures/statements/csv
+    dependencies:
+      - target: ExpenseTracker
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.expensetracker.tests

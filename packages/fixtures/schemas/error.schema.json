@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://expense-tracker.local/schemas/error.schema.json",
+  "title": "AppError",
+  "type": "object",
+  "required": ["code", "message"],
+  "properties": {
+    "code": { "type": "string", "minLength": 1 },
+    "message": { "type": "string", "minLength": 1 },
+    "entity_reference": { "type": ["string", "null"] },
+    "field_reference": { "type": ["string", "null"] },
+    "row_reference": { "type": ["integer", "null"] },
+    "retryable": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

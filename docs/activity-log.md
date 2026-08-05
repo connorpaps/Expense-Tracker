@@ -648,3 +648,10 @@ Raw per-save events, if the optional watcher is running, go to `docs/activity-wa
 
   - handoff.md
   - knowledge.md
+
+## 2026-08-05 16:20 — `f124942`
+**fix(web): pdf import error caused by StrictMode closing shared vault db**
+
+  - apps/web/src/App.tsx
+  - apps/web/src/features/imports/ImportPage.tsx
+  - scripts/repro-import.mjs

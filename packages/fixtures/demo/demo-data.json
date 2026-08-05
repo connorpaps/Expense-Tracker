@@ -1,0 +1,33 @@
+{
+  "demo": true,
+  "label": "Sample data — not your real finances",
+  "seed_version": "2026-08-04-01",
+  "default_currency": "USD",
+  "categories": [
+    { "name": "Food and Dining", "kind": "expense", "color_token": "copper", "icon_name": "utensils" },
+    { "name": "Transportation", "kind": "expense", "color_token": "slate", "icon_name": "car" },
+    { "name": "Shopping", "kind": "expense", "color_token": "violet", "icon_name": "bag" },
+    { "name": "Bills and Utilities", "kind": "expense", "color_token": "sky", "icon_name": "receipt" },
+    { "name": "Entertainment", "kind": "expense", "color_token": "rose", "icon_name": "ticket" },
+    { "name": "Health", "kind": "expense", "color_token": "emerald", "icon_name": "heart" },
+    { "name": "Travel", "kind": "expense", "color_token": "amber", "icon_name": "plane" },
+    { "name": "Income", "kind": "income", "color_token": "green", "icon_name": "arrow-down-left" },
+    { "name": "Transfers", "kind": "transfer", "color_token": "gray", "icon_name": "repeat" },
+    { "name": "Other", "kind": "other", "color_token": "stone", "icon_name": "ellipsis" }
+  ],
+  "transactions": [
+    { "occurred_on": "2026-07-01", "merchant_display": "Morning Roast Cafe", "amount_minor": -675, "category": "Food and Dining" },
+    { "occurred_on": "2026-07-01", "merchant_display": "Metro Transit", "amount_minor": -275, "category": "Transportation" },
+    { "occurred_on": "2026-07-02", "merchant_display": "Grocery Market", "amount_minor": -8420, "category": "Food and Dining" },
+    { "occurred_on": "2026-07-03", "merchant_display": "Monthly Streaming", "amount_minor": -1599, "category": "Entertainment" },
+    { "occurred_on": "2026-07-05", "merchant_display": "Pharmacy", "amount_minor": -2345, "category": "Health" },
+    { "occurred_on": "2026-07-06", "merchant_display": "Bookstore", "amount_minor": -1840, "category": "Shopping" },
+    { "occurred_on": "2026-07-08", "merchant_display": "Electric Utility", "amount_minor": -5630, "category": "Bills and Utilities" },
+    { "occurred_on": "2026-07-10", "merchant_display": "Ride Share", "amount_minor": -1250, "category": "Transportation" },
+    { "occurred_on": "2026-07-12", "merchant_display": "Movie Theater", "amount_minor": -2600, "category": "Entertainment" },
+    { "occurred_on": "2026-07-15", "merchant_display": "Employer Payroll", "amount_minor": 185000, "category": "Income" },
+    { "occurred_on": "2026-07-20", "merchant_display": "Restaurant Night", "amount_minor": -5820, "category": "Food and Dining" },
+    { "occurred_on": "2026-07-25", "merchant_display": "Phone Bill", "amount_minor": -4200, "category": "Bills and Utilities" },
+    { "occurred_on": "2026-07-28", "merchant_display": "Weekend Getaway", "amount_minor": -12400, "category": "Travel" }
+  ]
+}

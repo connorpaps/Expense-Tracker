@@ -1,0 +1,25 @@
+{
+  "fixture": "idempotent-replay-batch",
+  "description": "A batch delivered twice after a reconnect; the second delivery must be a no-op per mutation_id.",
+  "vault_id": "vault-demo-1",
+  "batch_id": "batch-3001",
+  "delivered_twice": true,
+  "mutations": [
+    {
+      "mutation_id": "mut-batch-3001",
+      "vault_id": "vault-demo-1",
+      "device_id": "ios-phone-1",
+      "clock": { "lamport": 10, "vector": { "ios-phone-1": 10 } },
+      "entity_type": "transaction",
+      "entity_id": "tx-batch-3001",
+      "operation": "create",
+      "base_version": 0,
+      "changed_fields": ["merchant_display", "amount_minor"],
+      "ciphertext": "AES-GCM-ENVELOPE-PLACEHOLDER"
+    }
+  ],
+  "expected": {
+    "duplicate_application_noop": true,
+    "pc_history_count_after_replay": 1
+  }
+}

@@ -12,14 +12,14 @@
 
 **Purpose**: Establish the multi-app workspace, free toolchain, shared fixtures, and platform targets.
 
-- [ ] T001 Create the repository workspace monorepo structure from `specs/001-local-expense-tracker/plan.md` in `package.json`, `apps/web/`, `apps/relay/`, `apps/ios/`, `packages/`, and `tests/`.
-- [ ] T002 [P] Initialize the React/TypeScript/Vite web workspace in `apps/web/package.json`, `apps/web/tsconfig.json`, `apps/web/vite.config.ts`, and `apps/web/src/main.tsx`.
-- [ ] T003 [P] Initialize the Node.js/TypeScript local relay workspace in `apps/relay/package.json`, `apps/relay/tsconfig.json`, and `apps/relay/src/main.ts` without adding a hosted-service dependency.
-- [ ] T004 [P] Create the native SwiftUI iOS 16 project and test target under `apps/ios/ExpenseTracker/` and `apps/ios/ExpenseTrackerTests/`, with iOS 16 as the deployment floor.
-- [ ] T005 [P] Create shared fixture, contract, and design-token directories under `packages/fixtures/`, `packages/contracts/`, and `packages/design-tokens/` with versioned README files.
-- [ ] T006 Configure repository-wide formatting, linting, strict TypeScript checking, unit-test commands, fixture-test commands, and build scripts in the root `package.json` and tool configuration files.
-- [ ] T007 Select and pin the browser SQLite/WASM store, iOS 16 SQLite wrapper, browser/iOS cryptography adapters, and local transport libraries in `package.json`, `apps/ios/ExpenseTracker/Package.swift` or the Xcode package configuration, and `docs/dependency-matrix.md`; verify licenses, free local use, browser support, and iOS 16 compatibility, and reject any dependency that requires a paid account or hosted tier.
-- [ ] T008 [P] Create the initial semantic web/iOS design-token source files and token tests in `packages/design-tokens/src/` and `packages/design-tokens/tests/` from `contracts/design-system.md`.
+- [X] T001 Create the repository workspace monorepo structure from `specs/001-local-expense-tracker/plan.md` in `package.json`, `apps/web/`, `apps/relay/`, `apps/ios/`, `packages/`, and `tests/`.
+- [X] T002 [P] Initialize the React/TypeScript/Vite web workspace in `apps/web/package.json`, `apps/web/tsconfig.json`, `apps/web/vite.config.ts`, and `apps/web/src/main.tsx`.
+- [X] T003 [P] Initialize the Node.js/TypeScript local relay workspace in `apps/relay/package.json`, `apps/relay/tsconfig.json`, and `apps/relay/src/main.ts` without adding a hosted-service dependency.
+- [X] T004 [P] Create the native SwiftUI iOS 16 project and test target under `apps/ios/ExpenseTracker/` and `apps/ios/ExpenseTrackerTests/`, with iOS 16 as the deployment floor.
+- [X] T005 [P] Create shared fixture, contract, and design-token directories under `packages/fixtures/`, `packages/contracts/`, and `packages/design-tokens/` with versioned README files.
+- [X] T006 Configure repository-wide formatting, linting, strict TypeScript checking, unit-test commands, fixture-test commands, and build scripts in the root `package.json` and tool configuration files.
+- [X] T007 Select and pin the browser SQLite/WASM store, iOS 16 SQLite wrapper, browser/iOS cryptography adapters, and local transport libraries in `package.json`, `apps/ios/ExpenseTracker/Package.swift` or the Xcode package configuration, and `docs/dependency-matrix.md`; verify licenses, free local use, browser support, and iOS 16 compatibility, and reject any dependency that requires a paid account or hosted tier.
+- [X] T008 [P] Create the initial semantic web/iOS design-token source files and token tests in `packages/design-tokens/src/` and `packages/design-tokens/tests/` from `contracts/design-system.md`.
 
 ---
 
@@ -29,22 +29,22 @@
 
 **CRITICAL**: No user story implementation begins until this phase is complete and its checkpoint passes.
 
-- [ ] T009 Define shared TypeScript domain entities and enums for `LocalVault`, `PairedDevice`, `Transaction`, `StatementImport`, `ImportRowReview`, `Category`, `CategorizationRule`, `MutationLogEntry`, `ConflictRecord`, and `DemoDataset` in `packages/domain/src/entities/`.
-- [ ] T010 [P] Implement exact minor-unit money arithmetic, currency validation, locale-aware date handling, period boundaries, and summary primitives in `packages/domain/src/money/`, `packages/domain/src/periods/`, and `packages/domain/src/summaries/`.
-- [ ] T011 Write schema/scoping/tombstone/index boundary tests first, then implement the local vault schema, migrations, vault scoping, tombstones, indexes, and transaction constraints in `packages/domain/src/storage/`, `packages/contracts/src/storage/`, and `packages/domain/tests/storage.test.ts`.
-- [ ] T012 Write lock/reopen, key-version, wrapped-key, recovery, key-rotation, and signature-verification tests first, then implement platform-neutral vault encryption, key-version, wrapped-device-key, recovery-export, and authenticated snapshot-signing interfaces in `packages/contracts/src/security/` using an explicitly documented interoperable design (AES-256-GCM payload encryption, HKDF-SHA-256 key derivation, authenticated P-256 ECDH device wrapping, and P-256 ECDSA snapshot signatures unless compatibility tests require an approved equivalent); document browser threat-model limits, iOS CryptoKit/Keychain expectations, key rotation, signing-key storage/rotation, and recovery behavior in `docs/security-model.md` and `packages/domain/tests/security.test.ts`.
-- [ ] T013 Write mutation-idempotency, retry, durable-queue, tombstone, conflict, and compaction-checkpoint tests first, then implement the append-only mutation-log model, Lamport/vector-clock metadata, idempotency index, retry states, durable offline queue states, exactly-once application guard, and compaction checkpoint rules in `packages/domain/src/sync/` and `packages/domain/tests/sync-log.test.ts`.
-- [ ] T014 [P] Define versioned JSON schemas for shared parser, normalized transaction, summary, mutation, snapshot, error, and conflict fixtures in `packages/contracts/src/` and `packages/fixtures/schemas/`.
-- [ ] T015 [P] Implement shared import, pairing, snapshot-bootstrap, mutation-exchange, conflict, and UI-state contract types in `packages/contracts/src/api/` and `packages/contracts/src/sync/` from `contracts/api.md`.
-- [ ] T016 [P] Implement stable error codes, safe user-facing messages, retryability, and entity/field/row references in `packages/contracts/src/errors/`.
-- [ ] T017 Implement a local SQLite-compatible web vault adapter with migrations and vault isolation in `apps/web/src/local/`.
-- [ ] T018 Implement the iOS 16 SQLite/local-vault adapter with Keychain-backed key access in `apps/ios/ExpenseTracker/Persistence/` and `apps/ios/ExpenseTracker/Domain/`.
-- [ ] T019 [P] Build the shared TypeScript fixture runner and golden-output assertions for vault schema/scoping, encryption lock/reopen boundaries, key-version handling, mutation idempotency, tombstones, compaction checkpoints, and financial outputs in `packages/fixtures/tests/` and `packages/domain/tests/`.
-- [ ] T020 [P] Build the Swift XCTest fixture loader and normalized-output assertions in `apps/ios/ExpenseTrackerTests/Fixtures/`.
-- [ ] T021 Create sanitized CSV, text-PDF, malformed-input, duplicate, conflict, phone-away, and 10,000-transaction fixtures in `packages/fixtures/statements/`, `packages/fixtures/expected/`, and `packages/fixtures/sync/`.
-- [ ] T022 [P] Create web accessibility, browser integration, and performance-test harness configuration in `apps/web/tests/`.
-- [ ] T023 [P] Create relay integration-test harness, deterministic clock utilities, AES-GCM/ECDH encrypted-envelope helpers, replay/idempotency assertions, and test-only local transport in `apps/relay/tests/`.
-- [ ] T024 Create iOS accessibility, persistence, CryptoKit/Keychain lock-reopen, key-rotation, sync, and iOS 16 destination test configuration in `apps/ios/ExpenseTrackerTests/`.
+- [X] T009 Define shared TypeScript domain entities and enums for `LocalVault`, `PairedDevice`, `Transaction`, `StatementImport`, `ImportRowReview`, `Category`, `CategorizationRule`, `MutationLogEntry`, `ConflictRecord`, and `DemoDataset` in `packages/domain/src/entities/`.
+- [X] T010 [P] Implement exact minor-unit money arithmetic, currency validation, locale-aware date handling, period boundaries, and summary primitives in `packages/domain/src/money/`, `packages/domain/src/periods/`, and `packages/domain/src/summaries/`.
+- [X] T011 Write schema/scoping/tombstone/index boundary tests first, then implement the local vault schema, migrations, vault scoping, tombstones, indexes, and transaction constraints in `packages/domain/src/storage/`, `packages/contracts/src/storage/`, and `packages/domain/tests/storage.test.ts`.
+- [X] T012 Write lock/reopen, key-version, wrapped-key, recovery, key-rotation, and signature-verification tests first, then implement platform-neutral vault encryption, key-version, wrapped-device-key, recovery-export, and authenticated snapshot-signing interfaces in `packages/contracts/src/security/` using an explicitly documented interoperable design (AES-256-GCM payload encryption, HKDF-SHA-256 key derivation, authenticated P-256 ECDH device wrapping, and P-256 ECDSA snapshot signatures unless compatibility tests require an approved equivalent); document browser threat-model limits, iOS CryptoKit/Keychain expectations, key rotation, signing-key storage/rotation, and recovery behavior in `docs/security-model.md` and `packages/domain/tests/security.test.ts`.
+- [X] T013 Write mutation-idempotency, retry, durable-queue, tombstone, conflict, and compaction-checkpoint tests first, then implement the append-only mutation-log model, Lamport/vector-clock metadata, idempotency index, retry states, durable offline queue states, exactly-once application guard, and compaction checkpoint rules in `packages/domain/src/sync/` and `packages/domain/tests/sync-log.test.ts`.
+- [X] T014 [P] Define versioned JSON schemas for shared parser, normalized transaction, summary, mutation, snapshot, error, and conflict fixtures in `packages/contracts/src/` and `packages/fixtures/schemas/`.
+- [X] T015 [P] Implement shared import, pairing, snapshot-bootstrap, mutation-exchange, conflict, and UI-state contract types in `packages/contracts/src/api/` and `packages/contracts/src/sync/` from `contracts/api.md`.
+- [X] T016 [P] Implement stable error codes, safe user-facing messages, retryability, and entity/field/row references in `packages/contracts/src/errors/`.
+- [X] T017 Implement a local SQLite-compatible web vault adapter with migrations and vault isolation in `apps/web/src/local/`.
+- [X] T018 Implement the iOS 16 SQLite/local-vault adapter with Keychain-backed key access in `apps/ios/ExpenseTracker/Persistence/` and `apps/ios/ExpenseTracker/Domain/`.
+- [X] T019 [P] Build the shared TypeScript fixture runner and golden-output assertions for vault schema/scoping, encryption lock/reopen boundaries, key-version handling, mutation idempotency, tombstones, compaction checkpoints, and financial outputs in `packages/fixtures/tests/` and `packages/domain/tests/`.
+- [X] T020 [P] Build the Swift XCTest fixture loader and normalized-output assertions in `apps/ios/ExpenseTrackerTests/Fixtures/`.
+- [X] T021 Create sanitized CSV, text-PDF, malformed-input, duplicate, conflict, phone-away, and 10,000-transaction fixtures in `packages/fixtures/statements/`, `packages/fixtures/expected/`, and `packages/fixtures/sync/`.
+- [X] T022 [P] Create web accessibility, browser integration, and performance-test harness configuration in `apps/web/tests/`.
+- [X] T023 [P] Create relay integration-test harness, deterministic clock utilities, AES-GCM/ECDH encrypted-envelope helpers, replay/idempotency assertions, and test-only local transport in `apps/relay/tests/`.
+- [X] T024 Create iOS accessibility, persistence, CryptoKit/Keychain lock-reopen, key-rotation, sync, and iOS 16 destination test configuration in `apps/ios/ExpenseTrackerTests/`.
 
 **Checkpoint**: Shared domain contracts, vault schema, crypto interfaces, fixtures, and test harnesses are available to all user-story phases; no hosted backend is required.
 
@@ -58,22 +58,22 @@
 
 ### Tests for User Story 1
 
-- [ ] T025 [P] [US1] Add web contract tests for CSV/PDF import states, normalized rows, diagnostics, duplicate candidates, and commit decisions in `apps/web/tests/integration/import-contract.test.ts`.
-- [ ] T026 [P] [US1] Add iOS XCTest coverage for shared CSV/PDF fixture parity, parser limits, cancellation, and unsupported-file states in `apps/ios/ExpenseTrackerTests/Import/ImportContractTests.swift`.
-- [ ] T027 [P] [US1] Add parser accuracy and malformed-input fixtures asserting the 95% valid-row extraction target in `packages/parsing/tests/accuracy.test.ts`.
+- [X] T025 [P] [US1] Add web contract tests for CSV/PDF import states, normalized rows, diagnostics, duplicate candidates, and commit decisions in `apps/web/tests/import-contract.test.ts` and `apps/web/tests/pdf-contract.test.ts`.
+- [X] T026 [P] [US1] Add iOS XCTest coverage for shared CSV/PDF fixture parity, parser limits, cancellation, and unsupported-file states in `apps/ios/ExpenseTrackerTests/Import/ImportContractTests.swift` and `apps/ios/ExpenseTrackerTests/Import/NativeImportTests.swift`.
+- [X] T027 [P] [US1] Add parser accuracy and malformed-input fixtures asserting the 95% valid-row extraction target in `packages/parsing/tests/accuracy.test.ts`.
 
 ### Implementation for User Story 1
 
-- [ ] T028 [P] [US1] Implement CSV column detection, quoted-field handling, date/sign normalization, and row diagnostics in `packages/parsing/src/csv/`.
-- [ ] T029 [P] [US1] Implement text-PDF extraction, page/text limits, column reconstruction, cancellation, and unsupported encrypted/image-only states in `packages/parsing/src/pdf/`.
-- [ ] T030 [US1] Implement shared merchant normalization, amount/currency normalization, bank-profile adapters, source preservation, and diagnostic mapping in `packages/parsing/src/normalization/`.
-- [ ] T031 [US1] Implement duplicate fingerprints and candidate matching within an import and against the active vault in `packages/domain/src/imports/duplicates.ts`.
-- [ ] T032 [US1] Implement the web worker parser pipeline, progress reporting, cancellation, and import-session state in `apps/web/src/workers/` and `apps/web/src/features/imports/`.
-- [ ] T033 [US1] Build the web import review table with row diagnostics, category provenance, confidence, duplicate decisions, edit/exclude controls, and accessible loading/error states in `apps/web/src/features/imports/`.
-- [ ] T034 [US1] Implement cancellable iOS background parsing and the native import-review flow using the shared normalized contract in `apps/ios/ExpenseTracker/Features/Imports/` and `apps/ios/ExpenseTracker/Domain/`.
-- [ ] T035 [US1] Implement explicit import commit, exclusion, cancellation, source-retention, and mutation-log behavior in `packages/domain/src/imports/commit.ts` and the web/iOS adapters.
-- [ ] T036 [US1] Add supported-bank fixture profiles for American Express, Apple Card, Chase, Capital One, and US Bank examples in `packages/parsing/src/profiles/` and `packages/fixtures/statements/`.
-- [ ] T037 [US1] Add import-review responsive, keyboard, VoiceOver, Dynamic Type, and parser-progress UI validation in `apps/web/tests/accessibility/import-review.test.ts` and `apps/ios/ExpenseTrackerTests/Import/ImportAccessibilityTests.swift`.
+- [X] T028 [P] [US1] Implement CSV column detection, quoted-field handling, date/sign normalization, and row diagnostics in `packages/parsing/src/csv/`.
+- [X] T029 [P] [US1] Implement text-PDF extraction, page/text limits, column reconstruction, cancellation, and unsupported encrypted/image-only states in `packages/parsing/src/pdf/`.
+- [X] T030 [US1] Implement shared merchant normalization, amount/currency normalization, bank-profile adapters, source preservation, and diagnostic mapping in `packages/parsing/src/normalization/`.
+- [X] T031 [US1] Implement duplicate fingerprints and candidate matching within an import and against the active vault in `packages/domain/src/imports/duplicates.ts`.
+- [X] T032 [US1] Implement the web worker parser pipeline, progress reporting, cancellation, and import-session state in `apps/web/src/workers/` and `apps/web/src/features/imports/`.
+- [X] T033 [US1] Build the web import review table with row diagnostics, category provenance, confidence, duplicate decisions, edit/exclude controls, and accessible loading/error states in `apps/web/src/features/imports/`.
+- [X] T034 [US1] Implement cancellable iOS background parsing and the native import-review flow using the shared normalized contract in `apps/ios/ExpenseTracker/Features/Imports/` and `apps/ios/ExpenseTracker/Domain/`.
+- [X] T035 [US1] Implement explicit import commit, exclusion, cancellation, source-retention, and mutation-log behavior in `packages/domain/src/imports/commit.ts` and the web/iOS adapters. Encrypted mutation-log append is conditional on a real ciphertext envelope; no plaintext placeholder is written.
+- [X] T036 [US1] Add supported-bank fixture profiles for American Express, Apple Card, Chase, Capital One, and US Bank examples in `packages/parsing/src/profiles/` and `packages/fixtures/statements/`.
+- [X] T037 [US1] Add import-review responsive, keyboard, VoiceOver, Dynamic Type, and parser-progress UI validation in `apps/web/tests/accessibility.test.tsx`, `apps/web/tests/harness.ts`, and `apps/ios/ExpenseTrackerTests/Import/ImportAccessibilityTests.swift`.
 
 **Checkpoint**: US1 works independently on web and iOS with identical normalized output and no silent row loss.
 

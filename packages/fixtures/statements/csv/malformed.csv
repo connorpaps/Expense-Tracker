@@ -1,0 +1,8 @@
+Date,Description,Amount
+07/01/2026,"Cafe, Downtown",-12.50
+not-a-date,Unknown Shop,-5.00
+07/03/2026,,
+07/04/2026,Bad Amount,abc
+07/05/2026,Valid Row,-9.99
+
+08/05/2026,Extra After Blank,-1.00

@@ -1,0 +1,17 @@
+{
+  "fixture": "malformed.csv",
+  "file_type": "csv",
+  "profile": "unknown",
+  "total_rows": 6,
+  "recognized_rows": 3,
+  "valid_rows": [
+    { "source_row_number": 1, "occurred_on": "2026-07-01", "merchant_display": "Cafe, Downtown", "amount_minor": -1250, "currency": "USD" },
+    { "source_row_number": 5, "occurred_on": "2026-07-05", "merchant_display": "Valid Row", "amount_minor": -999, "currency": "USD" },
+    { "source_row_number": 6, "occurred_on": "2026-08-05", "merchant_display": "Extra After Blank", "amount_minor": -100, "currency": "USD" }
+  ],
+  "error_rows": [
+    { "source_row_number": 2, "diagnostic_codes": ["ROW_INVALID_DATE"] },
+    { "source_row_number": 3, "diagnostic_codes": ["ROW_MISSING_MERCHANT"] },
+    { "source_row_number": 4, "diagnostic_codes": ["ROW_INVALID_AMOUNT"] }
+  ]
+}

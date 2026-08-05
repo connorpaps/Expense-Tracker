@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://expense-tracker.local/schemas/conflict.schema.json",
+  "title": "ConflictRecord",
+  "type": "object",
+  "required": ["conflict_id", "vault_id", "entity_type", "entity_id", "conflicting_fields", "status", "created_at"],
+  "properties": {
+    "conflict_id": { "type": "string", "minLength": 1 },
+    "vault_id": { "type": "string", "minLength": 1 },
+    "entity_type": { "enum": ["vault", "category", "transaction", "statement_import", "categorization_rule", "conflict"] },
+    "entity_id": { "type": "string", "minLength": 1 },
+    "conflicting_fields": { "type": "array", "items": { "type": "string" } },
+    "local_candidate": { "type": ["string", "null"] },
+    "remote_candidate": { "type": ["string", "null"] },
+    "base_candidate": { "type": ["string", "null"] },
+    "status": { "enum": ["open", "resolved_local", "resolved_remote", "resolved_manual"] },
+    "resolved_values": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "resolved_at": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}

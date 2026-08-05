@@ -1,0 +1,15 @@
+{
+  "fixture": "apple-card.csv",
+  "file_type": "csv",
+  "profile": "apple_card",
+  "total_rows": 5,
+  "recognized_rows": 5,
+  "valid_rows": [
+    { "source_row_number": 1, "occurred_on": "2026-07-01", "merchant_display": "Uber *Trip", "amount_minor": -1234, "currency": "USD" },
+    { "source_row_number": 2, "occurred_on": "2026-07-02", "merchant_display": "Apple.Com/Bill", "amount_minor": -999, "currency": "USD" },
+    { "source_row_number": 3, "occurred_on": "2026-07-03", "merchant_display": "Cvs Pharmacy", "amount_minor": -2345, "currency": "USD" },
+    { "source_row_number": 4, "occurred_on": "2026-07-05", "merchant_display": "Starbucks", "amount_minor": -650, "currency": "USD" },
+    { "source_row_number": 5, "occurred_on": "2026-07-06", "merchant_display": "Refund From Amazon", "amount_minor": 1820, "currency": "USD" }
+  ],
+  "error_rows": []
+}

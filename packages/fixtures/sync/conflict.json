@@ -1,0 +1,29 @@
+{
+  "fixture": "concurrent-edit-conflict",
+  "description": "The same transaction amount edited on web and iOS while offline; causally concurrent, field-aware conflict.",
+  "vault_id": "vault-demo-1",
+  "entity_type": "transaction",
+  "entity_id": "tx-shared-1",
+  "base_candidate": { "amount_minor": -1000, "currency": "USD" },
+  "local_mutation": {
+    "mutation_id": "mut-web-2001",
+    "device_id": "web-pc-1",
+    "clock": { "lamport": 5, "vector": { "web-pc-1": 5, "ios-phone-1": 4 } },
+    "operation": "update",
+    "changed_fields": ["amount_minor"],
+    "values": { "amount_minor": -1250 }
+  },
+  "remote_mutation": {
+    "mutation_id": "mut-ios-2002",
+    "device_id": "ios-phone-1",
+    "clock": { "lamport": 5, "vector": { "ios-phone-1": 5, "web-pc-1": 4 } },
+    "operation": "update",
+    "changed_fields": ["amount_minor"],
+    "values": { "amount_minor": -1599 }
+  },
+  "expected": {
+    "clocks_concurrent": true,
+    "conflicting_fields": ["amount_minor"],
+    "resolution_options": ["keep_local", "keep_remote", "manual_edit"]
+  }
+}
