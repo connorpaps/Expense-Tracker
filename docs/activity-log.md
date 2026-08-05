@@ -855,3 +855,17 @@ Raw per-save events, if the optional watcher is running, go to `docs/activity-wa
   - specs/001-local-expense-tracker/tasks.md
   - tsconfig.base.json
   - vitest.workspace.ts
+
+## 2026-08-05 16:49 — `077336e`
+**feat: memory lessons auto-capture, browser audit tooling, and aug5 audit report**
+
+  - .githooks/post-commit
+  - AGENTS.md
+  - MEMORY_SETUP.md
+  - aug5-report.md
+  - docs/lessons-learned.md
+  - handoff.md
+  - knowledge.md
+  - scripts/audit-browser.mjs
+  - scripts/audit-reload.mjs
+  - scripts/setup-memory-hooks.sh
