@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
-# Auto-memory hook: appends a dated entry (commit hash, message, changed files)
-# to docs/activity-log.md after every commit.
+# Auto-memory hook: after every commit, appends a dated entry (hash, message,
+# changed files) to docs/activity-log.md, AND auto-captures fix/error commits
+# into docs/lessons-learned.md as placeholder entries the agent enriches with
+# root cause + "avoid in future" at session start/end.
+#
+# Requires: git config core.hooksPath .githooks  (scripts/setup-memory-hooks.sh)
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 LOG="$ROOT/docs/activity-log.md"
+LESSONS="$ROOT/docs/lessons-learned.md"
 mkdir -p "$(dirname "$LOG")"
 
+# Skip if the only changed file is a memory log itself (avoids feedback loops).
+# --root includes the initial commit's files; -m --first-parent handles merges.
 CHANGED="$(git diff-tree --root -m --first-parent --no-commit-id --name-only -r HEAD)"
-if [ "$CHANGED" = "docs/activity-log.md" ]; then
+if [ "$CHANGED" = "docs/activity-log.md" ] || [ "$CHANGED" = "docs/lessons-learned.md" ]; then
   exit 0
 fi
 
@@ -23,3 +30,34 @@ DATE="$(date '+%Y-%m-%d %H:%M')"
   echo ""
   echo "$CHANGED" | sed 's/^/  - /'
 } >> "$LOG"
+
+# Lesson auto-capture: flag commits that look like fixes/errors so the agent
+# (or a human) enriches them later. The pattern is fixed, so the commit message
+# is safe as grep input.
+if echo "$MSG" | grep -qiE '\b(fix(es|ed|ing)?|bug(s|fix(es)?)?|error|regression|hotfix(es)?|workaround|rollback|revert)\b'; then
+  if [ ! -f "$LESSONS" ]; then
+    {
+      echo "# Lessons Learned & Error Log"
+      echo ""
+      echo "Structured record of mistakes, errors, gotchas, and fixes. Entries"
+      echo "are auto-captured from fix/error commits and written by the agent."
+      echo ""
+      echo "## Entry format"
+      echo "- **Symptom:** what went wrong"
+      echo "- **Root cause:** why it happened"
+      echo "- **Fix:** what was changed"
+      echo "- **Avoid in future:** the rule to prevent recurrence"
+      echo "- **Status:** fixed | workaround | open"
+      echo ""
+    } > "$LESSONS"
+  fi
+  {
+    echo ""
+    echo "## $DATE — \`$HASH\` (auto-captured, needs enrichment)"
+    echo "**$MSG**"
+    echo ""
+    echo "  - Files:"
+    echo "$CHANGED" | sed 's/^/    - /'
+    echo "  - TODO (agent): expand with Symptom / Root cause / Fix / Avoid in future, then remove the '(auto-captured, needs enrichment)' marker."
+  } >> "$LESSONS"
+fi

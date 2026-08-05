@@ -14,14 +14,20 @@ This repository uses git-tracked files as cross-session AI memory. The goal is t
 
 1. Read `handoff.md` first for the last session's work and prioritized next steps.
 2. Read `knowledge.md` for commands, architecture, constraints, and gotchas.
-3. Check `git status --short`, `git log --oneline -10`, and the tail of `docs/activity-log.md`.
-4. After each substantial change, append a brief `Work completed` note to `handoff.md` immediately.
+3. Read `docs/lessons-learned.md` — auto-captured "needs enrichment" entries there are homework to expand with root cause + avoid-in-future.
+4. Check `git status --short`, `git log --oneline -10`, and the tail of `docs/activity-log.md`.
+5. After each substantial change, append a brief `Work completed` note to `handoff.md` immediately.
+
+### During work — lesson capture is mandatory and immediate
+
+Whenever you fix an error, make a mistake, discover a gotcha, or find a project issue, append a structured entry to `docs/lessons-learned.md` **right away** (Symptom / Root cause / Fix / Avoid in future / Status). Never wait for session end — a forgotten lesson is a future hour-long debug. The `.githooks/post-commit` hook auto-appends placeholder entries for fix/error commits as a safety net.
 
 ### At session end or task completion
 
 1. Append a date-stamped `Work completed` section to `handoff.md` describing what changed, why, and validation.
 2. Update `knowledge.md` with new commands, architecture facts, constraints, or gotchas.
-3. Keep both files lean and prune stale material.
+3. Review `docs/lessons-learned.md`: expand auto-captured placeholder entries and remove their "needs enrichment" markers.
+4. Keep the memory files lean and prune stale material.
 
 ### Wrap-up signals
 
@@ -47,10 +53,11 @@ At session start, run `bash scripts/machine-sync.sh`. It detects machine changes
 
 ## Reference files
 
-- `knowledge.md` — canonical project knowledge and session protocol
+- `knowledge.md` — canonical project knowledge, gotchas, and session protocol
 - `handoff.md` — session log and prioritized next steps
+- `docs/lessons-learned.md` — structured lessons/errors/gotchas log (auto-captured + agent-written)
 - `docs/activity-log.md` — automatic commit log
-- `.githooks/post-commit` — automatic activity-log hook
+- `.githooks/post-commit` — automatic activity-log + lessons-capture hook
 - `scripts/setup-memory-hooks.sh` — per-machine hook setup
 - `scripts/machine-sync.sh` — session-start machine synchronization
 - `MEMORY_SETUP.md` — memory-system replication reference

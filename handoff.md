@@ -47,6 +47,27 @@ Phase 1–3 task lines T001–T037 are checked in `tasks.md`. TypeScript behavio
 4. Implement authenticated relay pairing, secure transport, snapshot/bootstrap, durable iOS queue, and conflict review before claiming phone-away/PC-later sync.
 5. Add US2 manual-entry web persistence tests, US3 dashboard/query integration, US4 personal rules, and US5 encrypted export/clear-local-data lifecycle.
 
+## Work completed this session (2026-08-05, continued — memory system wrap-up)
+
+- Verified `MEMORY_SETUP.md` is a complete, current replication kit for brand-new projects: all 12 files inventoried; templates for AGENTS.md/knowledge.md/handoff.md/docs-lessons-learned.md updated with the lessons-capture protocol; setup-script and post-commit templates verified byte-identical to the real files (HOOK PARITY: OK, SETUP PARITY: OK); added an "Performance & parallelism" section (hook = millisecond post-commit appends, watcher = debounced background process, machine-sync only at session start, files kept <200 lines).
+- Final validation: `bash -n` + `node --check` on all hooks/scripts pass; `setup-memory-hooks.sh` reports all 9 memory files present; `machine-sync.sh` up to date with origin/main.
+- Session wrapped up and pushed to GitHub (see git log).
+
+## Work completed this session (2026-08-05, continued — memory system upgrade: automatic lessons capture)
+
+- Upgraded the in-place memory system so mistakes/errors/gotchas/fixes are captured AUTOMATICALLY (user request — avoid another hour-long debug like the PDF bug):
+  - New `docs/lessons-learned.md`: structured log (Symptom / Root cause / Fix / Avoid in future / Status), seeded with the real lessons from this project (StrictMode DB-close PDF bug, audit assertion mismatches, bash `&` cwd quirk, browser-use fallback, PDF cold start, stray listeners).
+  - `.githooks/post-commit` now auto-appends an "(auto-captured, needs enrichment)" placeholder entry for every commit whose message matches fix/bug/error/regression/etc., with loop guards. Verified end-to-end in a scratch git repo (init commit → no entry; fix commit → placeholder created).
+  - `knowledge.md` (auto-read every session) gained a "Lessons & gotchas" section + a mandatory immediate lesson-capture ritual in the session protocol; `AGENTS.md` mirrors it; `setup-memory-hooks.sh` now verifies the lessons file; `MEMORY_SETUP.md` documents the new file, hook, protocol, and checklist.
+- Validation: `bash -n` on hook + setup script, setup script reports all memory files present, scratch-repo hook test passes, lessons file is git-tracked (not ignored).
+
+## Work completed this session (2026-08-05, continued — full app audit)
+
+- Ran a full app audit per user request before starting the next spec story. Static validation all green: typecheck, ESLint, 20 test files/122 tests, and the web production build (chunk-size warnings only).
+- Added live-browser audit tooling using the established CDP technique: `scripts/audit-browser.mjs` (21-scenario E2E over US1 flows) and `scripts/audit-reload.mjs` (vault/data persistence across reload). Both pass 21/21 and PASS respectively against the dev server AND the production build (`vite preview`), with a clean console throughout. Relay live smoke: `/health` JSON ok, 404 on unknown paths, WebSocket `pong` round-trip ok.
+- Findings written to `aug5-report.md`: everything in scope (T001–T037 / US1) works; Overview/Transactions/Settings are spec-correct static shells whose copy becomes misleading once imports exist (US3/US5 not yet implemented) — recommended as the next implementation priority alongside US2 manual entry.
+- Cleanup: killed stray relay (8712) and preview (4199) listeners left by earlier ad-hoc test commands.
+
 ## Work completed this session (2026-08-05, continued — PDF upload fix)
 
 - Root-caused the persistent "This file could not be imported." error in the browser upload flow. The parser was never the problem: a headless-Chrome CDP reproduction (`scripts/repro-import.mjs`) showed the TD PDF parsing to 19 rows, then `listCategories` failing with `SQLiteError: bad parameter or other API misuse`.

@@ -21,12 +21,13 @@
 
 ## 1. What you're building (architecture)
 
-A three-layer memory system that works across Freebuff (reads `knowledge.md` first) and Cursor/other tools (read `AGENTS.md`):
+A four-layer memory system that works across Freebuff (reads `knowledge.md` first) and Cursor/other tools (read `AGENTS.md`):
 
 | Layer | Type | Input required | Records |
 |---|---|---|---|
-| **Protocol** (`knowledge.md` + `AGENTS.md`) | Agent instructions | None (auto-read each session) | The *why*: decisions, gotchas, session history |
-| **Git hook** (`.githooks/post-commit`) | Mechanical | None (fires on every commit) | The *what*: date, message, changed files |
+| **Protocol** (`knowledge.md` + `AGENTS.md`) | Agent instructions | None (auto-read each session) | The *why*: decisions, gotchas, lessons, session history |
+| **Lessons** (`docs/lessons-learned.md`) | Structured log | Auto-captured by hook + agent writes during work | Mistakes, errors, gotchas, things to avoid, fixes |
+| **Git hook** (`.githooks/post-commit`) | Mechanical | None (fires on every commit) | The *what*: date, message, changed files + lesson placeholders for fix/error commits |
 | **Watcher** (`scripts/memory-watcher.mjs`, optional) | Mechanical | None (while running) | Raw per-save events (local only) |
 
 All memory files are git-tracked (except the watcher's local log), so memory travels with the repo and syncs across machines.
@@ -35,7 +36,7 @@ All memory files are git-tracked (except the watcher's local log), so memory tra
 
 For the user's reference and for the executing AI's understanding — here is the complete picture of what running this file produces.
 
-**📁 Files created (11 total):**
+**📁 Files created (12 total):**
 
 | File | Purpose |
 |---|---|
@@ -47,6 +48,7 @@ For the user's reference and for the executing AI's understanding — here is th
 | `scripts/memory-watcher.mjs` | Optional dependency-free Node watcher; logs every file save to a local log |
 | `scripts/machine-sync.sh` | Session-start machine-swap check: detects machine change, enables hooks, pulls latest when safe |
 | `docs/activity-log.md` | Auto-generated commit history (tracked — travels with the repo) |
+| `docs/lessons-learned.md` | Structured mistakes/errors/gotchas/fixes log — **auto-captured** from fix/error commits by the hook AND written immediately by the agent during work (Symptom / Root cause / Fix / Avoid in future / Status) |
 | `.gitattributes` | Forces LF line endings on scripts so hooks survive Windows checkouts |
 | `.gitignore` | Adds `docs/activity-watch.log` (watcher's local log) and `docs/.last-machine` (local machine marker) |
 | `.cursor/rules/` | Path-scoped rules template that Cursor auto-attaches when editing matching files |
@@ -58,12 +60,21 @@ For the user's reference and for the executing AI's understanding — here is th
 - **Machine-swap detection** — a `docs/.last-machine` hostname marker + the `machine-sync.sh` check, so switching machines auto-syncs memory with zero input
 
 **🧠 Behaviors installed — what the AI now does automatically:**
-- **Session start:** reads `handoff.md` (picks up where the last session left off) → reads `knowledge.md` (commands/architecture/constraints) → checks `git status`, recent `git log`, and the tail of `docs/activity-log.md` → runs the **bootstrap check** and self-installs the hook if this is a new machine
-- **During work:** logs non-obvious decisions/commands/gotchas into `knowledge.md` as discovered; appends a "Work completed" note to `handoff.md` immediately after each substantial change
-- **Session end:** appends a date-stamped "Work completed" section to `handoff.md`; updates `knowledge.md` with new rules; responds to wrap-up signals ("wrap up", "done for today", "that's all") **even if not explicitly asked**
+- **Session start:** reads `handoff.md` (picks up where the last session left off) → reads `knowledge.md` (commands/architecture/constraints/gotchas) → reads `docs/lessons-learned.md` (expands any auto-captured "needs enrichment" entries) → checks `git status`, recent `git log`, and the tail of `docs/activity-log.md` → runs the **bootstrap check** and self-installs the hook if this is a new machine
+- **During work:** logs non-obvious decisions/commands/gotchas into `knowledge.md` as discovered; **appends a structured entry to `docs/lessons-learned.md` IMMEDIATELY whenever an error is fixed, a mistake is made, or a gotcha is found** (Symptom / Root cause / Fix / Avoid in future / Status — never wait for session end); appends a "Work completed" note to `handoff.md` immediately after each substantial change
+- **Session end:** appends a date-stamped "Work completed" section to `handoff.md`; updates `knowledge.md` with new rules; **reviews `docs/lessons-learned.md` and expands any auto-captured "needs enrichment" placeholder entries** (root cause + avoid-in-future, then removes the marker); responds to wrap-up signals ("wrap up", "done for today", "that's all") **even if not explicitly asked**
 - **Automatic (zero input):** every commit logged to `docs/activity-log.md` by the hook; every file save logged to `docs/activity-watch.log` while the watcher runs
 
-**🧪 Verification performed automatically:** the executing agent runs the §8 checklist itself — hooks path correct, all 10 files present, `.gitattributes` in place, watcher log gitignored, test commit fires the hook, session protocol present in both protocol files — and reports the results.
+**🧪 Verification performed automatically:** the executing agent runs the §8 checklist itself — hooks path correct, all 12 files present, `.gitattributes` in place, watcher log gitignored, test commit fires the hook (activity-log entry + lessons placeholder for a `fix` commit), session protocol present in both protocol files — and reports the results.
+
+### ⚡ Performance & parallelism (why it never slows you down)
+
+- **The git hook is milliseconds and non-blocking.** It runs only in git's `post-commit` phase — after your commit is already complete — and does pure local text appends (no network, no dependencies, no locks). It never runs while you are editing or testing, so it can't interfere with real work.
+- **The watcher runs in parallel as a separate background process.** `memory-watcher.mjs` is fully independent of your editors, builds, and tests; it debounces per-file (1.5 s), ignores `node_modules`/`docs`/`.git`, and appends at most one line per saved file. Zero interference.
+- **`machine-sync.sh` runs only at session start**, does one lightweight `git fetch`, and only pulls when the working tree is clean. It never runs during work.
+- **Writes are simple `>>` appends** — no databases, no transaction locks, trivially safe alongside parallel tooling.
+- **Reads stay fast because the files stay lean** (< ~200 lines each): prune stale entries at session end, and the lessons log only grows when there are lessons (fix/error commits), so it stays small by design.
+- **Session-start cost is a few file reads** (`handoff.md`, `knowledge.md`, `docs/lessons-learned.md`, `git status`, `git log`, activity-log tail) — milliseconds, all local.
 
 ---
 
@@ -94,10 +105,10 @@ If the memory files don't exist yet (brand-new repo), the setup script will repo
 
 ## 4. Quick start (TL;DR for an agent)
 
-1. If `AGENTS.md`, `knowledge.md`, or `handoff.md` are missing, create them using §5.
+1. If `AGENTS.md`, `knowledge.md`, `handoff.md`, or `docs/lessons-learned.md` are missing, create them using §5.
 2. If `.githooks/post-commit`, `scripts/`, and `.gitattributes` are missing, create them using §6.
 3. If `.cursor/rules/` doesn't exist and the user uses Cursor, optionally create the rules in §6.4.
-4. Confirm `docs/activity-log.md` exists (create if missing) and that `docs/activity-watch.log` is gitignored (§6.5).
+4. Confirm `docs/activity-log.md` and `docs/lessons-learned.md` exist (create if missing) and that `docs/activity-watch.log` is gitignored (§6.5).
 5. Verify `git config core.hooksPath` is `.githooks`; if not, run `bash scripts/setup-memory-hooks.sh`. (Run setup **after** creating files — it exits with a warning if files are missing.)
 6. Done — the system self-maintains from here. On future sessions/machines, the bootstrap rule in §7 handles hook enablement automatically.
 
@@ -127,14 +138,20 @@ This repo uses git-tracked files as its cross-session AI memory. The goal: no re
 
 1. Read `handoff.md` — the last session's work and the prioritized next steps.
 2. Read `knowledge.md` — commands, architecture, constraints, gotchas.
-3. Check `git status --short`, `git log --oneline -10`, and the tail of `docs/activity-log.md` (auto-log of every commit) for recent context.
-4. **After completing a substantial change, append a brief "Work completed" note to `handoff.md` immediately** — do not wait for session end.
+3. Read `docs/lessons-learned.md` — auto-captured "needs enrichment" entries there are homework to expand with root cause + avoid-in-future.
+4. Check `git status --short`, `git log --oneline -10`, and the tail of `docs/activity-log.md` (auto-log of every commit) for recent context.
+5. **After completing a substantial change, append a brief "Work completed" note to `handoff.md` immediately** — do not wait for session end.
+
+### During work — lesson capture is mandatory and immediate
+
+Whenever you fix an error, make a mistake, discover a gotcha, or find a project issue, append a structured entry to `docs/lessons-learned.md` **right away** (Symptom / Root cause / Fix / Avoid in future / Status). Never wait for session end — a forgotten lesson is a future hour-long debug. The `.githooks/post-commit` hook auto-appends placeholder entries for fix/error commits as a safety net.
 
 ### At session end (or when a task completes)
 
 1. Append a date-stamped **"Work completed"** section to `handoff.md` — what changed, why, and what validation ran.
 2. Update `knowledge.md` with any new commands, architecture facts, constraints, or gotchas learned.
-3. Keep both files lean (< ~200 lines). Prune stale entries instead of accumulating.
+3. Review `docs/lessons-learned.md`: expand auto-captured placeholder entries and remove their "needs enrichment" markers.
+4. Keep the memory files lean (< ~200 lines). Prune stale entries instead of accumulating.
 
 ### Wrap-up signals
 
@@ -186,13 +203,13 @@ This repo uses git-tracked files as its cross-session AI memory. **Freebuff read
 
 - **Bootstrap check:** Verify the memory system is active — run `git config core.hooksPath`. If it is not `.githooks`, run `bash scripts/setup-memory-hooks.sh` before doing anything else. If memory files are missing but `MEMORY_SETUP.md` exists, replicate them from `MEMORY_SETUP.md`.
 - **Machine sync check:** Run `bash scripts/machine-sync.sh` — detects machine swaps (via `docs/.last-machine`), re-enables hooks here, fixes old `master` clones, and pulls the latest memory files when the working tree is clean.
-- **Session start:** Read `handoff.md` first (last session's work + next steps), then this file, then check `git status --short`, `git log --oneline -10`, and the tail of `docs/activity-log.md` (auto-log of every commit).
-- **During work:** Log non-obvious decisions, new commands, and gotchas into this file as they are discovered. **After completing a substantial change, append a brief "Work completed" note to `handoff.md` immediately — do not wait for session end.**
-- **Session end:** Append a date-stamped "Work completed" section to `handoff.md` (what changed, why, validation run). Update this file with any new rules/commands/architecture facts. Keep both files lean (< ~200 lines); prune stale content.
+- **Session start:** Read `handoff.md` first (last session's work + next steps), then this file, then `docs/lessons-learned.md` (expanding any auto-captured "needs enrichment" entries), then check `git status --short`, `git log --oneline -10`, and the tail of `docs/activity-log.md` (auto-log of every commit).
+- **During work:** Log non-obvious decisions, new commands, and gotchas into this file as they are discovered. **After fixing an error, making a mistake, or finding a gotcha, append a structured entry to `docs/lessons-learned.md` immediately** (Symptom / Root cause / Fix / Avoid in future / Status) — the post-commit hook auto-captures fix/error commits as placeholders, but the agent must not rely on that alone. **After completing a substantial change, append a brief "Work completed" note to `handoff.md` immediately — do not wait for session end.**
+- **Session end:** Append a date-stamped "Work completed" section to `handoff.md` (what changed, why, validation run). Update this file with any new rules/commands/architecture facts. **Review `docs/lessons-learned.md` and expand any auto-captured placeholder entries** (root cause + avoid-in-future, then remove the marker). Keep the memory files lean (< ~200 lines); prune stale content.
 - **Wrap-up signals:** If the user says the session is ending (e.g. "wrap up", "done for today", "that's all", "update the handoff"), update `handoff.md` + this file **even if not explicitly asked** — do not wait to be told.
 - Update `AGENTS.md` only when a rule must also bind Cursor/other tools — this file stays the single source of truth.
 
-**Automatic memory (no input needed):** a git `post-commit` hook (`.githooks/post-commit`) appends every commit to `docs/activity-log.md`; `node scripts/memory-watcher.mjs` (optional) logs every file save to `docs/activity-watch.log` (gitignored). These are mechanical records — the agent still owns writing the *why* into `handoff.md`/this file.
+**Automatic memory (no input needed):** a git `post-commit` hook (`.githooks/post-commit`) appends every commit to `docs/activity-log.md` and auto-captures fix/error commits into `docs/lessons-learned.md`; `node scripts/memory-watcher.mjs` (optional) logs every file save to `docs/activity-watch.log` (gitignored). These are mechanical records — the agent still owns writing the *why* into `handoff.md`/this file.
 
 ## Commands
 - Install: `<INSTALL_COMMAND>`
@@ -245,11 +262,43 @@ The session log. Create with this structure; the agent maintains it each session
 
 ## Session handoff checklist
 
-- Read `knowledge.md` and this file
+- Read `knowledge.md`, `docs/lessons-learned.md`, and this file
+- Expand any auto-captured "needs enrichment" lessons entries
 - `git pull` if on a different machine than last session
 - Check `git status --short`
 - Run `<TYPE_CHECK_COMMAND>` and `<TEST_COMMAND>` before changing behavior
 - **Push when done:** `git add -A && git commit -m "..." && git push`
+````
+
+### 5.4 `docs/lessons-learned.md` (repo root → `docs/`)
+
+The structured mistakes/errors/gotchas/fixes log. Auto-captured by the post-commit hook for fix/error commits, and written immediately by the agent during work (never at session end). Replicate with this shape:
+
+````markdown
+# Lessons Learned & Error Log
+
+**Purpose:** A permanent, structured record of mistakes, errors, gotchas, project issues, and fixes. The goal: never repeat a lesson.
+
+## How this file stays up to date (automatic)
+1. **Git hook safety net:** `.githooks/post-commit` auto-appends an "(auto-captured, needs enrichment)" placeholder for every commit whose message mentions fix/bug/error/regression/etc.
+2. **Agent ritual (mandatory, immediate):** the session protocol in `knowledge.md`/`AGENTS.md` requires appending a full entry immediately whenever an error is fixed, a mistake is made, or a gotcha is discovered.
+3. **Session-end sweep:** the agent expands auto-captured placeholders with root cause + "avoid in future" and removes the enrichment marker.
+
+## Entry format
+- **Symptom:** what went wrong or the error observed
+- **Root cause:** why it happened
+- **Fix:** what was changed to resolve it
+- **Avoid in future:** the actionable rule to prevent recurrence
+- **Status:** `fixed` | `workaround` | `open`
+
+---
+
+## <DATE> — <short title> (example seeded lesson)
+- **Symptom:** ...
+- **Root cause:** ...
+- **Fix:** ...
+- **Avoid in future:** ...
+- **Status:** fixed
 ````
 
 ---
@@ -258,26 +307,27 @@ The session log. Create with this structure; the agent maintains it each session
 
 ### 6.1 `.githooks/post-commit`
 
-The zero-input mechanical layer: appends every commit to `docs/activity-log.md`.
+The zero-input mechanical layer: appends every commit to `docs/activity-log.md`, AND auto-captures fix/error commits into `docs/lessons-learned.md` as placeholder entries the agent enriches with root cause + "avoid in future" at session start/end.
 
 ````bash
 #!/usr/bin/env bash
-# Auto-memory hook: appends a dated entry (commit hash, message, changed files)
-# to docs/activity-log.md after every commit. Runs for commits made by any tool
-# (Freebuff, Cursor, or manual), with zero user input.
+# Auto-memory hook: after every commit, appends a dated entry (hash, message,
+# changed files) to docs/activity-log.md, AND auto-captures fix/error commits
+# into docs/lessons-learned.md as placeholder entries the agent enriches with
+# root cause + "avoid in future" at session start/end.
 #
-# Requires: git config core.hooksPath .githooks  (run scripts/setup-memory-hooks.sh once)
+# Requires: git config core.hooksPath .githooks  (scripts/setup-memory-hooks.sh)
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 LOG="$ROOT/docs/activity-log.md"
+LESSONS="$ROOT/docs/lessons-learned.md"
 mkdir -p "$(dirname "$LOG")"
 
-# Skip if the only changed file is the activity log itself (avoids feedback loops)
-# --root includes the initial commit's files (root commit has no parent)
-# -m --first-parent handles merge commits (diff-tree shows nothing for merges by default)
+# Skip if the only changed file is a memory log itself (avoids feedback loops).
+# --root includes the initial commit's files; -m --first-parent handles merges.
 CHANGED="$(git diff-tree --root -m --first-parent --no-commit-id --name-only -r HEAD)"
-if [ "$CHANGED" = "docs/activity-log.md" ]; then
+if [ "$CHANGED" = "docs/activity-log.md" ] || [ "$CHANGED" = "docs/lessons-learned.md" ]; then
   exit 0
 fi
 
@@ -292,6 +342,37 @@ DATE="$(date '+%Y-%m-%d %H:%M')"
   echo ""
   echo "$CHANGED" | sed 's/^/  - /'
 } >> "$LOG"
+
+# Lesson auto-capture: flag commits that look like fixes/errors so the agent
+# (or a human) enriches them later. The pattern is fixed, so the commit message
+# is safe as grep input.
+if echo "$MSG" | grep -qiE '\b(fix(es|ed|ing)?|bug(s|fix(es)?)?|error|regression|hotfix(es)?|workaround|rollback|revert)\b'; then
+  if [ ! -f "$LESSONS" ]; then
+    {
+      echo "# Lessons Learned & Error Log"
+      echo ""
+      echo "Structured record of mistakes, errors, gotchas, and fixes. Entries"
+      echo "are auto-captured from fix/error commits and written by the agent."
+      echo ""
+      echo "## Entry format"
+      echo "- **Symptom:** what went wrong"
+      echo "- **Root cause:** why it happened"
+      echo "- **Fix:** what was changed"
+      echo "- **Avoid in future:** the rule to prevent recurrence"
+      echo "- **Status:** fixed | workaround | open"
+      echo ""
+    } > "$LESSONS"
+  fi
+  {
+    echo ""
+    echo "## $DATE — \`$HASH\` (auto-captured, needs enrichment)"
+    echo "**$MSG**"
+    echo ""
+    echo "  - Files:"
+    echo "$CHANGED" | sed 's/^/    - /'
+    echo "  - TODO (agent): expand with Symptom / Root cause / Fix / Avoid in future, then remove the '(auto-captured, needs enrichment)' marker."
+  } >> "$LESSONS"
+fi
 ````
 
 ### 6.2 `scripts/setup-memory-hooks.sh`
@@ -311,7 +392,7 @@ git config core.hooksPath .githooks
 
 # 2. Verify the required memory files exist (so the agent knows what to replicate)
 MISSING=()
-for f in AGENTS.md knowledge.md handoff.md .githooks/post-commit scripts/setup-memory-hooks.sh scripts/memory-watcher.mjs docs/activity-log.md; do
+for f in AGENTS.md knowledge.md handoff.md docs/lessons-learned.md .githooks/post-commit scripts/setup-memory-hooks.sh scripts/memory-watcher.mjs scripts/machine-sync.sh docs/activity-log.md; do
   [ -f "$f" ] || MISSING+=("$f")
 done
 
@@ -560,7 +641,9 @@ The two protocol files (`knowledge.md` and `AGENTS.md`) each contain this rule:
 - [ ] `.githooks/post-commit` exists and `scripts/setup-memory-hooks.sh` ran clean
 - [ ] `scripts/machine-sync.sh` exists and runs clean (`bash scripts/machine-sync.sh`)
 - [ ] `docs/activity-log.md` exists with the header
+- [ ] `docs/lessons-learned.md` exists with the entry format and at least one seeded lesson
 - [ ] `docs/activity-watch.log` is gitignored (`git check-ignore docs/activity-watch.log`)
+- [ ] Make a `fix(...)` test commit → `docs/lessons-learned.md` gains an `(auto-captured, needs enrichment)` entry (and `docs/activity-log.md` gains the commit)
 - [ ] `docs/.last-machine` is gitignored (`git check-ignore docs/.last-machine`)
 - [ ] Make a test commit → `docs/activity-log.md` gains an entry with the files changed
 - [ ] (Optional) `node scripts/memory-watcher.mjs` logs a save event

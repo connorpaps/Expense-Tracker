@@ -11,6 +11,16 @@
 - Current implementation state: first foundation/web/relay/import slice is implemented under `apps/`, `packages/`, and `docs/`; native iOS source scaffold exists but cannot be compiled on this Windows/MSYS machine.
 - Never commit secrets, `.env` files, private keys, credentials, or personal financial statements.
 
+## Lessons & gotchas (auto-read — never repeat these)
+
+- **Never close/dispose a module-singleton resource from a cancelled React StrictMode effect pass.** The PDF import bug (2026-08-05, ~1 h to find) was exactly this: the cancelled bootstrap effect closed the shared wa-sqlite DB, so every later query failed with SQLITE_MISUSE and the UI showed a generic "This file could not be imported." card while all Node tests passed. Session-owned singletons are never disposed by effect cleanups.
+- **Browser-only bugs are invisible to Node/jsdom tests.** Verify UI flows in a real browser: `scripts/audit-browser.mjs` (21 scenarios), `scripts/repro-import.mjs` (PDF), `scripts/audit-reload.mjs` (persistence). Diagnose from the real console via CDP before theorizing.
+- **Never swallow raw errors** — `console.error` the original error before mapping to a safe user message, or the real cause stays hidden.
+- **When an assertion fails, check whether the app or the assertion is wrong** before changing code (3 audit assertions failed because the test assumed behavior the app correctly didn't have).
+- **Bash `cd x && cmd &` backgrounds the whole list** — use `(cd x && cmd & echo $! > pid)` or absolute paths in test commands.
+- **First in-session PDF parse cold-starts the pdf.js worker** and can take > 30 s in fresh profiles; not a bug.
+- **Full structured lessons log (auto-captured + agent-written): `docs/lessons-learned.md`.**
+
 ## Architecture and constraints
 
 - Required path is $0 in software/service fees; no hosted database, hosted synchronization tier, paid API, App Store publication, or TestFlight is required.
@@ -43,6 +53,7 @@
 
 ## Validation facts
 
+- Full audit 2026-08-05 (report: `aug5-report.md`): typecheck/lint/122 tests/web build all pass. `scripts/audit-browser.mjs` = 21-scenario live Chrome E2E over US1 flows (vault bootstrap, nav, CSV import+exclude+commit, duplicate re-import+attention filter, PDF import 19 rows, empty/malformed error states) — passes on both dev server and `vite preview` production build with a clean console. `scripts/audit-reload.mjs` = vault/data survive a full page reload. Relay `/health` + WS `pong` verified live. Overview/Transactions/Settings pages are static shells (US3/US5 unimplemented); their empty-state copy is misleading after imports exist.
 - Full Vitest run after final fixes: 20 files / 122 tests passed.
 - Focused post-fix run: 12 files / 78 tests passed across domain/web/relay; all focused typechecks passed.
 - Web `npm run build` passed and produced parser-worker and wa-sqlite WASM assets.
@@ -61,4 +72,12 @@
 
 ## Session protocol
 
-Freebuff reads `knowledge.md` automatically. Cursor reads `AGENTS.md`. At session start read `handoff.md`, this file, check hooks/machine sync/status/activity log. After substantial work append a concise Work completed note to `handoff.md`; update this file with new commands/architecture facts. Keep memory lean.
+Freebuff reads `knowledge.md` automatically. Cursor reads `AGENTS.md`.
+
+**At session start:** read `handoff.md`, this file, and `docs/lessons-learned.md` (auto-captured "needs enrichment" entries are homework to expand). Then check hooks/machine sync/status/activity log.
+
+**During work — lesson capture is MANDATORY and immediate:** whenever you fix an error, make a mistake, discover a gotcha, or find a project issue, append a structured entry to `docs/lessons-learned.md` (Symptom / Root cause / Fix / Avoid in future / Status) right away — never at session end. The `.githooks/post-commit` hook auto-appends placeholder entries for fix/error commits as a mechanical safety net.
+
+**After substantial work:** append a concise Work completed note to `handoff.md`; update this file with new commands/architecture facts. Keep memory lean.
+
+**At session end:** review `docs/lessons-learned.md`; expand any auto-captured placeholder entries with root cause + avoid-in-future, then remove their "needs enrichment" marker. Prune stale entries.
