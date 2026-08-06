@@ -26,6 +26,7 @@ export const DEFAULT_CATEGORIES: Array<{
   { name: 'Shopping', kind: 'expense', color_token: 'violet', icon_name: 'bag' },
   { name: 'Bills and Utilities', kind: 'expense', color_token: 'sky', icon_name: 'receipt' },
   { name: 'Entertainment', kind: 'expense', color_token: 'rose', icon_name: 'ticket' },
+  { name: 'Subscriptions', kind: 'expense', color_token: 'plum', icon_name: 'repeat' },
   { name: 'Health', kind: 'expense', color_token: 'emerald', icon_name: 'heart' },
   { name: 'Travel', kind: 'expense', color_token: 'amber', icon_name: 'plane' },
   { name: 'Income', kind: 'income', color_token: 'green', icon_name: 'arrow-down-left' },

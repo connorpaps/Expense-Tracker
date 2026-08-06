@@ -171,7 +171,7 @@ ws.onopen = async () => {
       const v = await s.db.all('SELECT COUNT(*) AS n FROM vaults');
       return { categories: cats[0].n, vaults: v[0].n };
     })()`);
-    record('vault bootstrap', vault && probe.vaults === 1 && probe.categories === 10,
+    record('vault bootstrap', vault && probe.vaults === 1 && probe.categories === 11,
       { vaultId: vault, ...probe });
 
     // --- 2. Navigation (all four pages render without errors) ---
@@ -289,7 +289,20 @@ ws.onopen = async () => {
       console.log('PDF DIAGNOSTIC DUMP:', JSON.stringify(state, null, 2));
       throw error;
     });
+    const pdfCategoryState = await evalValue(`Array.from(document.querySelectorAll('.review__table tbody tr')).map((row) => ({
+      merchant: row.querySelector('.review__merchant')?.textContent.trim() ?? '',
+      value: row.querySelector('select')?.value ?? '',
+      selected: row.querySelector('select option:checked')?.textContent.trim() ?? '',
+      explanation: row.querySelector('.review__provenance')?.textContent.trim() ?? '',
+    }))`);
+    const pdfUncategorized = pdfCategoryState.filter((row) => !row.value || row.selected === 'Choose a category');
+    const pdfOldFallbackText = pdfCategoryState.filter((row) => row.explanation.includes('No active rule recognized'));
     record('PDF import: review table', pdfRows === 19, { rows: pdfRows });
+    record('PDF import: automatic categories selected', pdfCategoryState.length === 19 && pdfUncategorized.length === 0 && pdfOldFallbackText.length === 0, {
+      uncategorized: pdfUncategorized,
+      oldFallbackCount: pdfOldFallbackText.length,
+      sample: pdfCategoryState.slice(0, 5),
+    });
     const commitClick3 = await clickButton('Commit import');
     await waitFor(`!!document.querySelector('.commit-bar--success')`, 'pdf commit success');
     const saved3 = await evalValue(`document.querySelector('.commit-bar--success')?.textContent ?? ''`);

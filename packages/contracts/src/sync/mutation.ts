@@ -5,12 +5,7 @@
  */
 
 export type EntityType =
-  | 'vault'
-  | 'category'
-  | 'transaction'
-  | 'statement_import'
-  | 'categorization_rule'
-  | 'conflict';
+  'vault' | 'category' | 'transaction' | 'statement_import' | 'categorization_rule' | 'conflict';
 
 export type MutationOperation =
   | 'create'
@@ -30,7 +25,9 @@ export type MutationStatus =
   | 'applied'
   | 'conflict'
   | 'failed'
-  | 'disconnected';
+  | 'disconnected'
+  /** A durable local action that is intentionally excluded from this client's remote projection. */
+  | 'local_only';
 
 /** Lamport clock value. */
 export type Lamport = number;
@@ -83,6 +80,8 @@ export interface SyncExchangeResponse {
   conflicting_mutation_ids: string[];
   /** Mutation IDs not accepted because the relay batch limit was exceeded. */
   rejected_mutation_ids: string[];
+  /** Uploaded mutation IDs the relay durably accepted in this exchange. */
+  accepted_mutation_ids: string[];
 }
 
 /** Create a causal after-relation between two clocks. */

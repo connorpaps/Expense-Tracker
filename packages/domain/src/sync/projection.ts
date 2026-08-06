@@ -1,10 +1,11 @@
-import type { EntityType, MutationOperation } from '@expense-tracker/contracts';
+import type { EntityType, MutationOperation, MutationOrigin } from '@expense-tracker/contracts';
 import type { CategorizationRule, Category, Transaction } from '../entities';
 import type { LastModifiedBy } from '../entities/enums';
 import type { Db } from '../storage/schema';
 import {
   insertCategory,
   insertRule,
+  mergeCategory,
   insertTransaction,
   softDeleteTransaction,
   updateCategory,
@@ -25,6 +26,8 @@ export interface RemoteMutationInput {
   vaultId: string;
   mutation: AppendMutationInput;
   payload: unknown;
+  /** Trusted origin used only for projection attribution; relay envelopes stay opaque. */
+  projectionOrigin?: MutationOrigin;
 }
 
 export type RemoteMutationResult = Awaited<ReturnType<typeof applyMutationOnce>>;
@@ -37,7 +40,11 @@ function requirePayload(value: unknown): RemoteMutationPayload {
   if (!isRecord(value) || typeof value.entity !== 'string' || !isRecord(value.value)) {
     throw new Error('Remote mutation payload is not a supported decrypted record.');
   }
-  if (value.entity !== 'transaction' && value.entity !== 'category' && value.entity !== 'categorization_rule') {
+  if (
+    value.entity !== 'transaction' &&
+    value.entity !== 'category' &&
+    value.entity !== 'categorization_rule'
+  ) {
     throw new Error('Remote mutation payload targets an unsupported entity.');
   }
   return value as unknown as RemoteMutationPayload;
@@ -56,18 +63,37 @@ function requireVault(value: Record<string, unknown>, vaultId: string, label: st
 }
 
 function requireUpdatedAt(value: Record<string, unknown>, now: string): string {
-  return typeof value.updated_at === 'string' && value.updated_at.length > 0 ? value.updated_at : now;
+  return typeof value.updated_at === 'string' && value.updated_at.length > 0
+    ? value.updated_at
+    : now;
 }
 
-function requireDeclaredFields(value: Record<string, unknown>, changedFields: string[], allowedFields: readonly string[], label: string): void {
+function requireDeclaredFields(
+  value: Record<string, unknown>,
+  changedFields: string[],
+  allowedFields: readonly string[],
+  label: string,
+): void {
   const unknownFields = changedFields.filter((field) => !allowedFields.includes(field));
-  if (unknownFields.length > 0) throw new Error(`Remote ${label} mutation declares unsupported fields: ${unknownFields.join(', ')}.`);
-  const payloadFields = Object.keys(value).filter((field) => field !== 'id' && field !== 'vault_id');
-  const undeclared = payloadFields.filter((field) => !changedFields.includes(field) && field !== 'updated_at' && field !== 'version');
-  if (undeclared.length > 0) throw new Error(`Remote ${label} payload contains undeclared fields: ${undeclared.join(', ')}.`);
-  if (changedFields.length === 0) throw new Error(`Remote ${label} update must declare changed fields.`);
+  if (unknownFields.length > 0)
+    throw new Error(
+      `Remote ${label} mutation declares unsupported fields: ${unknownFields.join(', ')}.`,
+    );
+  const payloadFields = Object.keys(value).filter(
+    (field) => field !== 'id' && field !== 'vault_id',
+  );
+  const undeclared = payloadFields.filter(
+    (field) => !changedFields.includes(field) && field !== 'updated_at' && field !== 'version',
+  );
+  if (undeclared.length > 0)
+    throw new Error(
+      `Remote ${label} payload contains undeclared fields: ${undeclared.join(', ')}.`,
+    );
+  if (changedFields.length === 0)
+    throw new Error(`Remote ${label} update must declare changed fields.`);
   const missing = changedFields.filter((field) => !(field in value));
-  if (missing.length > 0) throw new Error(`Remote ${label} payload is missing declared fields: ${missing.join(', ')}.`);
+  if (missing.length > 0)
+    throw new Error(`Remote ${label} payload is missing declared fields: ${missing.join(', ')}.`);
 }
 
 async function applyTransactionProjection(
@@ -80,14 +106,28 @@ async function applyTransactionProjection(
   requireVault(value, vaultId, 'transaction');
   if (mutation.operation === 'create' || mutation.operation === 'import_commit') {
     requireTransactionFields(value);
-    await insertTransaction(db, value as unknown as Transaction);
+    await insertTransaction(db, {
+      ...(value as unknown as Transaction),
+      last_modified_by: originToLastModifiedBy(mutation.origin),
+    });
     return;
   }
   if (mutation.operation === 'delete') {
-    if (!await db.get('SELECT id FROM transactions WHERE vault_id = ? AND id = ?', [vaultId, mutation.entityId])) {
+    if (
+      !(await db.get('SELECT id FROM transactions WHERE vault_id = ? AND id = ?', [
+        vaultId,
+        mutation.entityId,
+      ]))
+    ) {
       throw new Error('Remote transaction target does not exist in this vault.');
     }
-    await softDeleteTransaction(db, vaultId, mutation.entityId, requireUpdatedAt(value, mutation.now), originToLastModifiedBy(mutation.origin));
+    await softDeleteTransaction(
+      db,
+      vaultId,
+      mutation.entityId,
+      requireUpdatedAt(value, mutation.now),
+      originToLastModifiedBy(mutation.origin),
+    );
     return;
   }
   if (mutation.operation === 'merge') {
@@ -99,10 +139,29 @@ async function applyTransactionProjection(
   if (mutation.operation === 'restore') {
     throw new Error('Remote transaction restore requires an explicit undelete projection.');
   }
-  if (!await db.get('SELECT id FROM transactions WHERE vault_id = ? AND id = ?', [vaultId, mutation.entityId])) {
+  if (
+    !(await db.get('SELECT id FROM transactions WHERE vault_id = ? AND id = ?', [
+      vaultId,
+      mutation.entityId,
+    ]))
+  ) {
     throw new Error('Remote transaction target does not exist in this vault.');
   }
-  requireDeclaredFields(value, mutation.changedFields, ['occurred_on', 'merchant_display', 'amount_minor', 'category_id', 'category_source', 'category_confidence', 'note', 'review_state'], 'transaction');
+  requireDeclaredFields(
+    value,
+    mutation.changedFields,
+    [
+      'occurred_on',
+      'merchant_display',
+      'amount_minor',
+      'category_id',
+      'category_source',
+      'category_confidence',
+      'note',
+      'review_state',
+    ],
+    'transaction',
+  );
   await updateTransaction(db, vaultId, mutation.entityId, {
     ...(value as Partial<Transaction>),
     updated_at: requireUpdatedAt(value, mutation.now),
@@ -126,20 +185,66 @@ async function applyCategoryProjection(
   if (mutation.operation === 'delete') {
     // Categories are archived rather than physically deleted so historical
     // transaction references remain valid across clients.
-    if (!await getExisting(db, 'categories', vaultId, mutation.entityId)) throw new Error('Remote category target does not exist in this vault.');
-    await updateCategoryActive(db, vaultId, mutation.entityId, false, requireUpdatedAt(value, mutation.now));
+    if (!(await getExisting(db, 'categories', vaultId, mutation.entityId)))
+      throw new Error('Remote category target does not exist in this vault.');
+    await updateCategoryActive(
+      db,
+      vaultId,
+      mutation.entityId,
+      false,
+      requireUpdatedAt(value, mutation.now),
+    );
     return;
   }
   if (mutation.operation === 'merge') {
-    throw new Error('Remote category merge requires an explicit projection plan.');
+    if (
+      mutation.changedFields.length !== 2 ||
+      !mutation.changedFields.includes('category_id') ||
+      !mutation.changedFields.includes('is_active')
+    ) {
+      throw new Error('Remote category merge has invalid changed-field metadata.');
+    }
+    if (
+      typeof value.target_category_id !== 'string' ||
+      value.target_category_id === mutation.entityId
+    ) {
+      throw new Error('Remote category merge requires a different target category.');
+    }
+    if (!(await getExisting(db, 'categories', vaultId, value.target_category_id))) {
+      throw new Error('Remote category merge target does not exist in this vault.');
+    }
+    await mergeCategory(
+      db,
+      vaultId,
+      mutation.entityId,
+      value.target_category_id,
+      requireUpdatedAt(value, mutation.now),
+    );
+    return;
   }
-  if (mutation.operation !== 'update' && mutation.operation !== 'category_update' && mutation.operation !== 'restore') {
+  if (
+    mutation.operation !== 'update' &&
+    mutation.operation !== 'category_update' &&
+    mutation.operation !== 'restore'
+  ) {
     throw new Error(`Remote category operation ${mutation.operation} is not supported.`);
   }
-  if (!await getExisting(db, 'categories', vaultId, mutation.entityId)) throw new Error('Remote category target does not exist in this vault.');
-  requireDeclaredFields(value, mutation.changedFields, ['name', 'slug', 'position', 'is_active'], 'category');
+  if (!(await getExisting(db, 'categories', vaultId, mutation.entityId)))
+    throw new Error('Remote category target does not exist in this vault.');
+  requireDeclaredFields(
+    value,
+    mutation.changedFields,
+    ['name', 'slug', 'position', 'is_active'],
+    'category',
+  );
   if (mutation.operation === 'restore' || value.is_active !== undefined) {
-    await updateCategoryActive(db, vaultId, mutation.entityId, value.is_active !== false, requireUpdatedAt(value, mutation.now));
+    await updateCategoryActive(
+      db,
+      vaultId,
+      mutation.entityId,
+      value.is_active !== false,
+      requireUpdatedAt(value, mutation.now),
+    );
   }
   const patch: { name?: string; slug?: string; position?: number; updated_at: string } = {
     updated_at: requireUpdatedAt(value, mutation.now),
@@ -172,35 +277,95 @@ async function applyRuleProjection(
   if (mutation.operation !== 'update' && mutation.operation !== 'rule_update') {
     throw new Error(`Remote categorization-rule operation ${mutation.operation} is not supported.`);
   }
-  if (!await getExisting(db, 'categorization_rules', vaultId, mutation.entityId)) throw new Error('Remote categorization-rule target does not exist in this vault.');
-  requireDeclaredFields(value, mutation.changedFields, ['category_id', 'matcher', 'priority', 'confidence', 'evidence_count', 'is_active'], 'categorization rule');
+  if (!(await getExisting(db, 'categorization_rules', vaultId, mutation.entityId)))
+    throw new Error('Remote categorization-rule target does not exist in this vault.');
+  requireDeclaredFields(
+    value,
+    mutation.changedFields,
+    ['category_id', 'matcher', 'priority', 'confidence', 'evidence_count', 'is_active'],
+    'categorization rule',
+  );
   await updateRule(db, vaultId, mutation.entityId, {
     ...(value as Partial<CategorizationRule>),
     updated_at: requireUpdatedAt(value, mutation.now),
   });
 }
 
-async function getExisting(db: Db, table: 'categories' | 'categorization_rules', vaultId: string, id: string): Promise<boolean> {
-  return Boolean(await db.get(`SELECT id FROM ${table} WHERE vault_id = ? AND id = ?`, [vaultId, id]));
+async function getExisting(
+  db: Db,
+  table: 'categories' | 'categorization_rules',
+  vaultId: string,
+  id: string,
+): Promise<boolean> {
+  return Boolean(
+    await db.get(`SELECT id FROM ${table} WHERE vault_id = ? AND id = ?`, [vaultId, id]),
+  );
 }
 
 function requireString(value: Record<string, unknown>, key: string, label: string): void {
-  if (typeof value[key] !== 'string' || value[key] === '') throw new Error(`Remote ${label} payload is missing ${key}.`);
+  if (typeof value[key] !== 'string' || value[key] === '')
+    throw new Error(`Remote ${label} payload is missing ${key}.`);
 }
 
 function requireTransactionFields(value: Record<string, unknown>): void {
-  for (const key of ['id', 'vault_id', 'occurred_on', 'merchant_display', 'currency', 'source_type', 'review_state', 'created_at', 'updated_at', 'last_modified_by']) requireString(value, key, 'transaction');
-  if (!Number.isSafeInteger(value.amount_minor) || value.amount_minor === 0) throw new Error('Remote transaction payload has an invalid amount.');
+  for (const key of [
+    'id',
+    'vault_id',
+    'occurred_on',
+    'merchant_display',
+    'currency',
+    'source_type',
+    'review_state',
+    'created_at',
+    'updated_at',
+    'last_modified_by',
+  ])
+    requireString(value, key, 'transaction');
+  if (!Number.isSafeInteger(value.amount_minor) || value.amount_minor === 0)
+    throw new Error('Remote transaction payload has an invalid amount.');
 }
 
 function requireCategoryFields(value: Record<string, unknown>): void {
-  for (const key of ['id', 'vault_id', 'name', 'slug', 'kind', 'color_token', 'icon_name', 'created_at', 'updated_at']) requireString(value, key, 'category');
-  if (typeof value.position !== 'number' || typeof value.is_active !== 'boolean' || typeof value.version !== 'number') throw new Error('Remote category payload is missing required fields.');
+  for (const key of [
+    'id',
+    'vault_id',
+    'name',
+    'slug',
+    'kind',
+    'color_token',
+    'icon_name',
+    'created_at',
+    'updated_at',
+  ])
+    requireString(value, key, 'category');
+  if (
+    typeof value.position !== 'number' ||
+    typeof value.is_active !== 'boolean' ||
+    typeof value.version !== 'number'
+  )
+    throw new Error('Remote category payload is missing required fields.');
 }
 
 function requireRuleFields(value: Record<string, unknown>): void {
-  for (const key of ['id', 'vault_id', 'category_id', 'rule_type', 'matcher', 'created_from', 'created_at', 'updated_at']) requireString(value, key, 'categorization rule');
-  if (typeof value.priority !== 'number' || typeof value.confidence !== 'number' || typeof value.evidence_count !== 'number' || typeof value.is_active !== 'boolean' || typeof value.version !== 'number') throw new Error('Remote categorization-rule payload is missing required fields.');
+  for (const key of [
+    'id',
+    'vault_id',
+    'category_id',
+    'rule_type',
+    'matcher',
+    'created_from',
+    'created_at',
+    'updated_at',
+  ])
+    requireString(value, key, 'categorization rule');
+  if (
+    typeof value.priority !== 'number' ||
+    typeof value.confidence !== 'number' ||
+    typeof value.evidence_count !== 'number' ||
+    typeof value.is_active !== 'boolean' ||
+    typeof value.version !== 'number'
+  )
+    throw new Error('Remote categorization-rule payload is missing required fields.');
 }
 
 function originToLastModifiedBy(origin: AppendMutationInput['origin']): LastModifiedBy {
@@ -216,8 +381,12 @@ function originToLastModifiedBy(origin: AppendMutationInput['origin']): LastModi
  * vault/entity scope and applies the projection atomically with the mutation
  * log's exactly-once guard.
  */
-export async function applyRemoteMutation(input: RemoteMutationInput, db: Db): Promise<RemoteMutationResult> {
-  if (input.mutation.vaultId !== input.vaultId) throw new Error('Remote mutation envelope targets the wrong vault.');
+export async function applyRemoteMutation(
+  input: RemoteMutationInput,
+  db: Db,
+): Promise<RemoteMutationResult> {
+  if (input.mutation.vaultId !== input.vaultId)
+    throw new Error('Remote mutation envelope targets the wrong vault.');
   const payload = requirePayload(input.payload);
   if (payload.entity !== input.mutation.entityType) {
     throw new Error('Remote mutation entity metadata does not match its decrypted payload.');
@@ -225,26 +394,39 @@ export async function applyRemoteMutation(input: RemoteMutationInput, db: Db): P
 
   return applyMutationOnce(db, input.vaultId, input.mutation, async (projectionDb) => {
     const value = payload.value as Record<string, unknown>;
+    const projectionMutation = input.projectionOrigin
+      ? { ...input.mutation, origin: input.projectionOrigin }
+      : input.mutation;
     switch (input.mutation.entityType as EntityType) {
       case 'transaction':
-        await applyTransactionProjection(projectionDb, input.vaultId, input.mutation, value);
+        await applyTransactionProjection(projectionDb, input.vaultId, projectionMutation, value);
         return;
       case 'category':
-        await applyCategoryProjection(projectionDb, input.vaultId, input.mutation, value);
+        await applyCategoryProjection(projectionDb, input.vaultId, projectionMutation, value);
         return;
       case 'categorization_rule':
-        await applyRuleProjection(projectionDb, input.vaultId, input.mutation, value);
+        await applyRuleProjection(projectionDb, input.vaultId, projectionMutation, value);
         return;
       default:
-        throw new Error(`Remote entity ${input.mutation.entityType} is not supported by this projection adapter.`);
+        throw new Error(
+          `Remote entity ${input.mutation.entityType} is not supported by this projection adapter.`,
+        );
     }
   });
 }
 
 /** Narrow helper for callers that want to validate an operation before decrypting. */
-export function isProjectableRemoteMutation(entityType: EntityType, operation: MutationOperation): boolean {
-  if (entityType === 'transaction') return ['create', 'update', 'delete', 'import_commit'].includes(operation);
-  if (entityType === 'category') return ['create', 'update', 'delete', 'restore', 'category_update'].includes(operation);
-  if (entityType === 'categorization_rule') return ['create', 'update', 'rule_update'].includes(operation);
+export function isProjectableRemoteMutation(
+  entityType: EntityType,
+  operation: MutationOperation,
+): boolean {
+  if (entityType === 'transaction')
+    return ['create', 'update', 'delete', 'import_commit'].includes(operation);
+  if (entityType === 'category')
+    return ['create', 'update', 'delete', 'restore', 'merge', 'category_update'].includes(
+      operation,
+    );
+  if (entityType === 'categorization_rule')
+    return ['create', 'update', 'rule_update'].includes(operation);
   return false;
 }

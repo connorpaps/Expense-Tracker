@@ -1,4 +1,8 @@
-import type { ImportPreviewDto, ImportRowReviewDto, UserDecision } from '@expense-tracker/contracts';
+import type {
+  ImportPreviewDto,
+  ImportRowReviewDto,
+  UserDecision,
+} from '@expense-tracker/contracts';
 import { CATEGORY_CONFIDENCE_LABELS, CATEGORY_SOURCE_LABELS } from '@expense-tracker/contracts';
 import { formatMinor } from '@expense-tracker/domain';
 import { StatusBadge } from './StatusBadge';
@@ -24,10 +28,22 @@ export function ReviewTable({
   onDecision,
   onCategoryCorrection,
 }: ReviewTableProps) {
-  const activeCorrections = corrections ?? new Map<string, { categoryId: string; rememberRule: boolean }>();
+  const activeCorrections =
+    corrections ?? new Map<string, { categoryId: string; rememberRule: boolean }>();
   const applyCategoryCorrection = onCategoryCorrection ?? (() => {});
-  const needsAttention = (row: ImportRowReviewDto) =>
-    row.row_status === 'error' || row.row_status === 'duplicate_candidate' || row.diagnostics.length > 0;
+  const needsAttention = (row: ImportRowReviewDto) => {
+    const decision = decisions.get(row.id) ?? row.user_decision;
+    const selectedCategoryId =
+      activeCorrections.get(row.id)?.categoryId ?? row.suggested_category_id;
+    if (decision === 'exclude') return false;
+    return (
+      row.row_status === 'error' ||
+      row.row_status === 'duplicate_candidate' ||
+      row.diagnostics.length > 0 ||
+      decision === 'pending' ||
+      selectedCategoryId === null
+    );
+  };
 
   const visibleRows = attentionOnly ? preview.rows.filter(needsAttention) : preview.rows;
   const attentionCount = preview.rows.filter(needsAttention).length;
@@ -36,7 +52,9 @@ export function ReviewTable({
     return (
       <div className="panel panel--empty" role="status">
         <h2>No transactions found</h2>
-        <p>This file does not contain any recognizable transactions. Check the file and try again.</p>
+        <p>
+          This file does not contain any recognizable transactions. Check the file and try again.
+        </p>
       </div>
     );
   }
@@ -57,7 +75,12 @@ export function ReviewTable({
         </p>
       </div>
 
-      <div className="review__table-wrap" tabIndex={0} role="group" aria-label="Imported transactions review">
+      <div
+        className="review__table-wrap"
+        tabIndex={0}
+        role="group"
+        aria-label="Imported transactions review"
+      >
         <table className="review__table">
           <caption className="sr-only">Imported transactions review</caption>
           <thead>
@@ -93,22 +116,44 @@ export function ReviewTable({
                   <td className="review__amount">
                     {row.parsed_amount_minor === null
                       ? '—'
-                      : formatMinor(row.parsed_amount_minor, row.parsed_currency ?? 'USD')}
+                      : formatMinor(row.parsed_amount_minor, row.parsed_currency ?? 'CAD')}
                   </td>
                   <td>
                     <span className="review__category">
                       <select
                         aria-label={`Category for ${row.parsed_merchant ?? 'row'}`}
                         value={selectedCategoryId}
-                        onChange={(event) => applyCategoryCorrection(row.id, event.target.value, correction?.rememberRule ?? false)}
+                        onChange={(event) =>
+                          applyCategoryCorrection(
+                            row.id,
+                            event.target.value,
+                            correction?.rememberRule ?? false,
+                          )
+                        }
                       >
                         <option value="">Choose a category</option>
-                        {categories.filter((category) => category.is_active !== false).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                        {categories
+                          .filter((category) => category.is_active !== false)
+                          .map((category) => (
+                            <option key={category.id} value={category.id}>
+                              {category.name}
+                            </option>
+                          ))}
                       </select>
                       {correction ? (
-                        <span className="review__provenance">{CATEGORY_SOURCE_LABELS.user} · {CATEGORY_CONFIDENCE_LABELS.confirmed}</span>
-                      ) : row.explanation?.detail ? <span className="review__provenance">{row.explanation.detail}</span> : row.category_source && row.category_confidence && (
-                        <span className="review__provenance">{CATEGORY_SOURCE_LABELS[row.category_source]} · {CATEGORY_CONFIDENCE_LABELS[row.category_confidence]}</span>
+                        <span className="review__provenance">
+                          {CATEGORY_SOURCE_LABELS.user} · {CATEGORY_CONFIDENCE_LABELS.confirmed}
+                        </span>
+                      ) : row.explanation?.detail ? (
+                        <span className="review__provenance">{row.explanation.detail}</span>
+                      ) : (
+                        row.category_source &&
+                        row.category_confidence && (
+                          <span className="review__provenance">
+                            {CATEGORY_SOURCE_LABELS[row.category_source]} ·{' '}
+                            {CATEGORY_CONFIDENCE_LABELS[row.category_confidence]}
+                          </span>
+                        )
                       )}
                       {(correction || decision === 'accept') && (
                         <label className="review__remember">
@@ -116,7 +161,13 @@ export function ReviewTable({
                             type="checkbox"
                             checked={correction?.rememberRule ?? false}
                             disabled={!correction || !selectedCategoryId}
-                            onChange={(event) => applyCategoryCorrection(row.id, selectedCategoryId, event.target.checked)}
+                            onChange={(event) =>
+                              applyCategoryCorrection(
+                                row.id,
+                                selectedCategoryId,
+                                event.target.checked,
+                              )
+                            }
                           />
                           Remember this merchant
                         </label>
@@ -127,11 +178,16 @@ export function ReviewTable({
                     <StatusBadge status={row.row_status} />
                   </td>
                   <td>
-                    <div className="review__decision" role="group" aria-label={`Decision for ${row.parsed_merchant ?? 'row'}`}>
+                    <div
+                      className="review__decision"
+                      role="group"
+                      aria-label={`Decision for ${row.parsed_merchant ?? 'row'}`}
+                    >
                       <button
                         type="button"
                         className={`segmented${decision === 'accept' ? ' segmented--active' : ''}`}
                         aria-pressed={decision === 'accept'}
+                        disabled={!selectedCategoryId}
                         onClick={() => onDecision(row.id, 'accept')}
                       >
                         Accept

@@ -49,7 +49,7 @@ export function buildImportPreview(statement: ParsedStatement, context: Pipeline
   );
 
   const rows: ImportRowReviewDto[] = statement.rows.map((row) => {
-    const suggestion = suggestCategory(row.parsedMerchant ?? '', suggestionContext);
+    const suggestion = suggestCategory(row.parsedMerchant ?? '', { ...suggestionContext, amountMinor: row.parsedAmountMinor });
     const duplicates = duplicateMap.get(String(row.sourceRowNumber)) ?? [];
     return {
       id: randomUuid(),
@@ -67,7 +67,7 @@ export function buildImportPreview(statement: ParsedStatement, context: Pipeline
       duplicate_candidate_ids: duplicates,
       // Duplicate candidates require an explicit user decision; they must not
       // silently enter the vault just because the parser recognized the row.
-      user_decision: row.rowStatus === 'error' || duplicates.length > 0 ? 'pending' : 'accept',
+      user_decision: row.rowStatus === 'error' || duplicates.length > 0 || suggestion.categoryId === null ? 'pending' : 'accept',
       explanation: suggestion.explanation,
     };
   });

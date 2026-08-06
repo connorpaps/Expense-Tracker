@@ -105,13 +105,13 @@ export class OpaqueEnvelopeStore {
     return 'inserted';
   }
 
-  exchange(vaultId: string, knownClock: KnownClock, limit: number, replay = false, conflictingMutationIds: string[] = [], rejectedMutationIds: string[] = []): SyncExchangeResponse {
+  exchange(vaultId: string, knownClock: KnownClock, limit: number, replay = false, conflictingMutationIds: string[] = [], rejectedMutationIds: string[] = [], acceptedMutationIds: string[] = []): SyncExchangeResponse {
     const all = [...(this.mutations.get(vaultId)?.values() ?? [])].sort((a, b) => a.clock.lamport - b.clock.lamport || a.mutation_id.localeCompare(b.mutation_id));
     const eligible = all.filter((mutation) => mutation.clock.lamport > (knownClock[mutation.device_id] ?? 0));
     const mutations = eligible.slice(0, Math.max(0, limit));
     const checkpoint: KnownClock = { ...knownClock };
     for (const mutation of mutations) checkpoint[mutation.device_id] = Math.max(checkpoint[mutation.device_id] ?? 0, mutation.clock.lamport);
-    return { vault_id: vaultId, mutations, checkpoint, has_more: mutations.length < eligible.length, replay, conflicting_mutation_ids: conflictingMutationIds, rejected_mutation_ids: rejectedMutationIds };
+    return { vault_id: vaultId, mutations, checkpoint, has_more: mutations.length < eligible.length, replay, conflicting_mutation_ids: conflictingMutationIds, rejected_mutation_ids: rejectedMutationIds, accepted_mutation_ids: acceptedMutationIds };
   }
 
   mutationCount(vaultId: string): number { return this.mutations.get(vaultId)?.size ?? 0; }
@@ -393,16 +393,19 @@ function exchangeMessage(socket: WebSocket, message: Extract<RelayMessage, { typ
   let response = replay ? store.responseForReplay(envelopeId) : undefined;
   if (!response) {
     const conflictingMutationIds: string[] = [];
+    const acceptedMutationIds: string[] = [];
     const uploadedMutations = message.request.mutations ?? [];
     const rejectedMutationIds = uploadedMutations.slice(MAX_MUTATIONS_PER_BATCH).map((mutation) => mutation.mutation_id);
     if (!replay) {
       store.record(envelopeId);
       for (const mutation of uploadedMutations.slice(0, MAX_MUTATIONS_PER_BATCH)) {
         if (mutation.vault_id !== message.request.vault_id) continue;
-        if (store.appendMutation(mutation) === 'conflict') conflictingMutationIds.push(mutation.mutation_id);
+        const outcome = store.appendMutation(mutation);
+        if (outcome === 'conflict') conflictingMutationIds.push(mutation.mutation_id);
+        else acceptedMutationIds.push(mutation.mutation_id);
       }
     }
-    response = store.exchange(message.request.vault_id, message.request.known_clock, Math.min(Math.max(0, message.request.requested_limit), MAX_MUTATIONS_PER_RESPONSE), replay, conflictingMutationIds, rejectedMutationIds);
+    response = store.exchange(message.request.vault_id, message.request.known_clock, Math.min(Math.max(0, message.request.requested_limit), MAX_MUTATIONS_PER_RESPONSE), replay, conflictingMutationIds, rejectedMutationIds, acceptedMutationIds);
     if (!replay) store.rememberResponse(envelopeId, response);
   }
   socket.send(JSON.stringify({ type: 'sync_exchange_response', response: replay ? { ...response, replay: true } : response }));

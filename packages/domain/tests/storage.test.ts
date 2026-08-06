@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { randomUuid } from '../src/entities/ids';
 import { DEFAULT_CATEGORIES, categorySlug } from '../src/entities/category';
 import { newTransaction } from '../src/entities/transaction';
+import type { Db, SqlRow } from '../src/storage/schema';
 import { applySchema, schemaVersion, SCHEMA_VERSION } from '../src/storage/schema';
 import {
   getVault,
@@ -57,6 +58,10 @@ describe('Vault storage schema and repository (T011)', () => {
         "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_transactions_review_state'",
       );
       expect(index?.name).toBe('idx_transactions_review_state');
+      const migratedSubscriptions = await listCategories(db, 'vault-migrate');
+      expect(
+        migratedSubscriptions.filter((category) => category.name === 'Subscriptions'),
+      ).toHaveLength(1);
     });
   });
 
@@ -66,7 +71,7 @@ describe('Vault storage schema and repository (T011)', () => {
       await insertVault(db, makeVault('vault-a'));
       await insertVault(db, makeVault('vault-b'));
       expect((await getVault(db, 'vault-a'))?.id).toBe('vault-a');
-      expect((await getVault(db, 'missing'))).toBeNull();
+      expect(await getVault(db, 'missing')).toBeNull();
     });
   });
 
@@ -94,8 +99,73 @@ describe('Vault storage schema and repository (T011)', () => {
         ),
       );
       const categories = await listCategories(db, 'vault-a');
-      expect(categories).toHaveLength(10);
+      expect(categories).toHaveLength(DEFAULT_CATEGORIES.length);
       expect(categories[0]?.name).toBe('Food and Dining');
+      expect(categories.some((category) => category.name === 'Subscriptions')).toBe(true);
+    });
+  });
+
+  it('maps string SQLite boolean values from browser-compatible adapters', async () => {
+    await withNodeDb(async (db) => {
+      await applySchema(db);
+      await insertVault(db, makeVault('vault-string-bools'));
+      const now = '2026-08-04T00:00:00.000Z';
+      await insertCategory(db, {
+        id: 'cat-string-bool',
+        vault_id: 'vault-string-bools',
+        name: 'Food and Dining',
+        slug: 'food-and-dining',
+        kind: 'expense',
+        color_token: 'copper',
+        icon_name: 'utensils',
+        position: 0,
+        is_active: true,
+        created_at: now,
+        updated_at: now,
+        version: 1,
+      });
+      await insertRule(db, {
+        id: 'rule-string-bool',
+        vault_id: 'vault-string-bools',
+        category_id: 'cat-string-bool',
+        rule_type: 'personal_merchant',
+        matcher: 'corner cafe',
+        priority: 10,
+        confidence: 1,
+        evidence_count: 1,
+        is_active: true,
+        created_from: 'explicit_user_rule',
+        created_at: now,
+        updated_at: now,
+        version: 1,
+      });
+
+      // Some SQLite adapters expose INTEGER booleans as strings. Keep this
+      // wrapper intentionally narrow so the test exercises repository mapping,
+      // not a different storage implementation.
+      const stringBooleanDb: Db = {
+        ...db,
+        all: async <T extends SqlRow = SqlRow>(sql: string, params: unknown[] = []) => {
+          const rows = await db.all<T>(sql, params);
+          if (!sql.includes('FROM categories') && !sql.includes('FROM categorization_rules'))
+            return rows;
+          return rows.map((row) => ({ ...row, is_active: '1' }) as T);
+        },
+        get: async <T extends SqlRow = SqlRow>(sql: string, params: unknown[] = []) => {
+          const row = await db.get<T>(sql, params);
+          if (
+            !row ||
+            (!sql.includes('FROM categories') && !sql.includes('FROM categorization_rules'))
+          )
+            return row;
+          return { ...row, is_active: '1' } as T;
+        },
+      };
+
+      expect((await listCategories(stringBooleanDb, 'vault-string-bools'))[0]?.is_active).toBe(
+        true,
+      );
+      expect((await listRules(stringBooleanDb, 'vault-string-bools'))[0]?.is_active).toBe(true);
     });
   });
 
@@ -119,25 +189,51 @@ describe('Vault storage schema and repository (T011)', () => {
         version: 1,
       }));
       for (const category of categories) await insertCategory(db, category);
-      await updateCategory(db, 'vault-a', 'cat-0', { name: 'Meals', slug: 'meals', updated_at: now });
-      await reorderCategories(db, 'vault-a', ['cat-1', 'cat-0'], now);
-      expect((await listCategories(db, 'vault-a')).map((category) => category.name)).toEqual(['Transportation', 'Meals']);
-      await insertRule(db, {
-        id: 'rule-1', vault_id: 'vault-a', category_id: 'cat-0', rule_type: 'personal_merchant', matcher: 'corner cafe',
-        priority: 10, confidence: 1, evidence_count: 1, is_active: true, created_from: 'explicit_user_rule',
-        created_at: now, updated_at: now, version: 1,
+      await updateCategory(db, 'vault-a', 'cat-0', {
+        name: 'Meals',
+        slug: 'meals',
+        updated_at: now,
       });
-      expect((await listRules(db, 'vault-a', false))).toHaveLength(1);
-      await expect(updateCategoryActive(db, 'vault-a', 'cat-0', false, now)).rejects.toThrow(/disable personal rules/i);
+      await reorderCategories(db, 'vault-a', ['cat-1', 'cat-0'], now);
+      expect((await listCategories(db, 'vault-a')).map((category) => category.name)).toEqual([
+        'Transportation',
+        'Meals',
+      ]);
+      await insertRule(db, {
+        id: 'rule-1',
+        vault_id: 'vault-a',
+        category_id: 'cat-0',
+        rule_type: 'personal_merchant',
+        matcher: 'corner cafe',
+        priority: 10,
+        confidence: 1,
+        evidence_count: 1,
+        is_active: true,
+        created_from: 'explicit_user_rule',
+        created_at: now,
+        updated_at: now,
+        version: 1,
+      });
+      expect(await listRules(db, 'vault-a', false)).toHaveLength(1);
+      await expect(updateCategoryActive(db, 'vault-a', 'cat-0', false, now)).rejects.toThrow(
+        /disable personal rules/i,
+      );
       await updateRule(db, 'vault-a', 'rule-1', { is_active: false, updated_at: now });
       await updateCategoryActive(db, 'vault-a', 'cat-0', false, now);
       expect((await listRules(db, 'vault-a')).some((rule) => rule.id === 'rule-1')).toBe(false);
-      await expect(updateCategoryActive(db, 'vault-a', 'cat-1', false, now)).rejects.toThrow(/at least one active/i);
+      await expect(updateCategoryActive(db, 'vault-a', 'cat-1', false, now)).rejects.toThrow(
+        /at least one active/i,
+      );
 
       await updateCategoryActive(db, 'vault-a', 'cat-0', true, now);
       await mergeCategory(db, 'vault-a', 'cat-0', 'cat-1', now);
-      expect((await listCategories(db, 'vault-a')).find((category) => category.id === 'cat-0')?.is_active).toBe(false);
-      expect((await listRules(db, 'vault-a', false)).find((rule) => rule.id === 'rule-1')?.category_id).toBe('cat-1');
+      expect(
+        (await listCategories(db, 'vault-a')).find((category) => category.id === 'cat-0')
+          ?.is_active,
+      ).toBe(false);
+      expect(
+        (await listRules(db, 'vault-a', false)).find((rule) => rule.id === 'rule-1')?.category_id,
+      ).toBe('cat-1');
     });
   });
 
@@ -177,7 +273,12 @@ describe('Vault storage schema and repository (T011)', () => {
       const inB = await listTransactions(db, { vaultId: 'vault-b' });
       expect(inA.map((t) => t.id)).toEqual(['tx-a']);
       expect(inB.map((t) => t.id)).toEqual(['tx-b']);
-      expect((await listTransactions(db, { vaultId: 'vault-a', range: { start: '2026-08-02', end: '2026-08-31' } }))).toHaveLength(0);
+      expect(
+        await listTransactions(db, {
+          vaultId: 'vault-a',
+          range: { start: '2026-08-02', end: '2026-08-31' },
+        }),
+      ).toHaveLength(0);
     });
   });
 
@@ -209,9 +310,52 @@ describe('Vault storage schema and repository (T011)', () => {
       await applySchema(db);
       await insertVault(db, makeVault('vault-a'));
       const now = '2026-08-04T00:00:00.000Z';
-      await expect(insertTransaction(db, newTransaction({ id: 'bad-date', vault_id: 'vault-a', occurred_on: '2026-99-99', merchant_display: 'Cafe', amount_minor: -100, currency: 'USD', source_type: 'manual', now }))).rejects.toThrow(/date/i);
-      await expect(insertTransaction(db, newTransaction({ id: 'bad-currency', vault_id: 'vault-a', occurred_on: '2026-08-01', merchant_display: 'Cafe', amount_minor: -100, currency: 'ZZZ', source_type: 'manual', now }))).rejects.toThrow(/currency/i);
-      await expect(insertTransaction(db, newTransaction({ id: 'bad-category', vault_id: 'vault-a', occurred_on: '2026-08-01', merchant_display: 'Cafe', amount_minor: -100, currency: 'USD', category_id: 'missing', source_type: 'manual', now }))).rejects.toThrow(/category/i);
+      await expect(
+        insertTransaction(
+          db,
+          newTransaction({
+            id: 'bad-date',
+            vault_id: 'vault-a',
+            occurred_on: '2026-99-99',
+            merchant_display: 'Cafe',
+            amount_minor: -100,
+            currency: 'USD',
+            source_type: 'manual',
+            now,
+          }),
+        ),
+      ).rejects.toThrow(/date/i);
+      await expect(
+        insertTransaction(
+          db,
+          newTransaction({
+            id: 'bad-currency',
+            vault_id: 'vault-a',
+            occurred_on: '2026-08-01',
+            merchant_display: 'Cafe',
+            amount_minor: -100,
+            currency: 'ZZZ',
+            source_type: 'manual',
+            now,
+          }),
+        ),
+      ).rejects.toThrow(/currency/i);
+      await expect(
+        insertTransaction(
+          db,
+          newTransaction({
+            id: 'bad-category',
+            vault_id: 'vault-a',
+            occurred_on: '2026-08-01',
+            merchant_display: 'Cafe',
+            amount_minor: -100,
+            currency: 'USD',
+            category_id: 'missing',
+            source_type: 'manual',
+            now,
+          }),
+        ),
+      ).rejects.toThrow(/category/i);
     });
   });
 
@@ -256,22 +400,70 @@ describe('Vault storage schema and repository (T011)', () => {
       await insertVault(db, makeVault('vault-a'));
       const now = '2026-08-04T00:00:00.000Z';
       await insertCategory(db, {
-        id: 'cat-food', vault_id: 'vault-a', name: 'Food', slug: 'food', kind: 'expense', color_token: 'copper', icon_name: 'utensils', position: 0, is_active: true, created_at: now, updated_at: now, version: 1,
+        id: 'cat-food',
+        vault_id: 'vault-a',
+        name: 'Food',
+        slug: 'food',
+        kind: 'expense',
+        color_token: 'copper',
+        icon_name: 'utensils',
+        position: 0,
+        is_active: true,
+        created_at: now,
+        updated_at: now,
+        version: 1,
       });
       await insertCategory(db, {
-        id: 'cat-transport', vault_id: 'vault-a', name: 'Transport', slug: 'transport', kind: 'expense', color_token: 'slate', icon_name: 'car', position: 1, is_active: true, created_at: now, updated_at: now, version: 1,
+        id: 'cat-transport',
+        vault_id: 'vault-a',
+        name: 'Transport',
+        slug: 'transport',
+        kind: 'expense',
+        color_token: 'slate',
+        icon_name: 'car',
+        position: 1,
+        is_active: true,
+        created_at: now,
+        updated_at: now,
+        version: 1,
       });
       await insertTransaction(
         db,
-        newTransaction({ id: 'tx-1', vault_id: 'vault-a', occurred_on: '2026-08-01', merchant_display: 'Starbucks', amount_minor: -650, currency: 'USD', category_id: 'cat-food', source_type: 'manual', now }),
+        newTransaction({
+          id: 'tx-1',
+          vault_id: 'vault-a',
+          occurred_on: '2026-08-01',
+          merchant_display: 'Starbucks',
+          amount_minor: -650,
+          currency: 'USD',
+          category_id: 'cat-food',
+          source_type: 'manual',
+          now,
+        }),
       );
       await insertTransaction(
         db,
-        newTransaction({ id: 'tx-2', vault_id: 'vault-a', occurred_on: '2026-08-02', merchant_display: 'Shell Gas', amount_minor: -4500, currency: 'USD', category_id: 'cat-transport', source_type: 'manual', now }),
+        newTransaction({
+          id: 'tx-2',
+          vault_id: 'vault-a',
+          occurred_on: '2026-08-02',
+          merchant_display: 'Shell Gas',
+          amount_minor: -4500,
+          currency: 'USD',
+          category_id: 'cat-transport',
+          source_type: 'manual',
+          now,
+        }),
       );
-      expect((await listTransactions(db, { vaultId: 'vault-a', search: 'starbucks' })).map((t) => t.id)).toEqual(['tx-1']);
-      expect((await listTransactions(db, { vaultId: 'vault-a', categoryId: 'cat-transport' })).map((t) => t.id)).toEqual(['tx-2']);
-      expect((await listTransactions(db, { vaultId: 'vault-a', search: 'zzz' }))).toHaveLength(0);
+      expect(
+        (await listTransactions(db, { vaultId: 'vault-a', search: 'starbucks' })).map((t) => t.id),
+      ).toEqual(['tx-1']);
+      expect(
+        (await listTransactions(db, { vaultId: 'vault-a', categoryId: 'cat-transport' })).map(
+          (t) => t.id,
+        ),
+      ).toEqual(['tx-2']);
+      expect(await listTransactions(db, { vaultId: 'vault-a', search: 'zzz' })).toHaveLength(0);
     });
   });
 });

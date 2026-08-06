@@ -9,7 +9,12 @@ import {
   validateVaultExportSnapshot as validateSharedVaultExportSnapshot,
 } from '@expense-tracker/domain';
 import type { VaultExportSnapshot as SharedVaultExportSnapshot } from '@expense-tracker/domain';
-import { clearMutationKeyStorage, decryptExportPayload, encryptExportPayload, EXPORT_KDF } from './security';
+import {
+  clearMutationKeyStorage,
+  decryptExportPayload,
+  encryptExportPayload,
+  EXPORT_KDF,
+} from './security';
 export { encryptExportPayload } from './security';
 export { EXPORT_KDF } from './security';
 
@@ -24,7 +29,10 @@ function validateCopyRow(table: ExportTable, row: SqlRow): readonly string[] {
   const columns = vaultExportColumns(table);
   const actual = Object.keys(row).sort();
   const expected = [...columns].sort();
-  if (actual.length !== expected.length || actual.some((column, index) => column !== expected[index])) {
+  if (
+    actual.length !== expected.length ||
+    actual.some((column, index) => column !== expected[index])
+  ) {
     throw new Error(`The backup contains incomplete or unsupported fields in ${table}.`);
   }
   return columns;
@@ -32,22 +40,39 @@ function validateCopyRow(table: ExportTable, row: SqlRow): readonly string[] {
 
 function insertRow(db: Db, table: ExportTable, row: SqlRow): Promise<void> {
   const columns = validateCopyRow(table, row);
-  return db.exec(
-    `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
-    columns.map((column) => row[column] ?? null),
-  ).then(() => undefined);
+  return db
+    .exec(
+      `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
+      columns.map((column) => row[column] ?? null),
+    )
+    .then(() => undefined);
 }
 
 function insertVaultRow(db: Db, row: SqlRow): Promise<void> {
-  const columns = ['id', 'vault_owner_label', 'default_currency', 'locale', 'week_start', 'demo_mode', 'created_at', 'updated_at', 'deleted_at'];
+  const columns = [
+    'id',
+    'vault_owner_label',
+    'default_currency',
+    'locale',
+    'week_start',
+    'demo_mode',
+    'created_at',
+    'updated_at',
+    'deleted_at',
+  ];
   const actual = Object.keys(row).sort();
-  if (actual.length !== columns.length || actual.some((column, index) => column !== [...columns].sort()[index])) {
+  if (
+    actual.length !== columns.length ||
+    actual.some((column, index) => column !== [...columns].sort()[index])
+  ) {
     throw new Error('The backup contains unsupported vault fields.');
   }
-  return db.exec(
-    `INSERT INTO vaults (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
-    columns.map((column) => row[column] ?? null),
-  ).then(() => undefined);
+  return db
+    .exec(
+      `INSERT INTO vaults (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
+      columns.map((column) => row[column] ?? null),
+    )
+    .then(() => undefined);
 }
 
 export type VaultExportSnapshot = SharedVaultExportSnapshot;
@@ -103,16 +128,19 @@ export async function parseVaultExport(file: File, password: string): Promise<Va
   ) {
     throw new Error('This is not a supported Expense Tracker vault backup.');
   }
-  if (raw.checksum !== await computeExportChecksum(raw.encrypted)) {
+  if (raw.checksum !== (await computeExportChecksum(raw.encrypted))) {
     throw new Error('The backup checksum does not match; the file may be damaged.');
   }
   let snapshot: VaultExportSnapshot;
   try {
-    snapshot = JSON.parse(await decryptExportPayload(raw.encrypted, password)) as VaultExportSnapshot;
+    snapshot = JSON.parse(
+      await decryptExportPayload(raw.encrypted, password),
+    ) as VaultExportSnapshot;
   } catch (cause) {
     if (cause instanceof Error && /password|damaged|unsupported/i.test(cause.message)) throw cause;
     throw new Error('The encrypted backup contents are invalid.');
-  }    if (!snapshot.tables.category_correction_history) {
+  }
+  if (!snapshot.tables.category_correction_history) {
     snapshot.tables.category_correction_history = [];
   }
   validateVaultExportSnapshot(snapshot);
@@ -124,7 +152,11 @@ function validateVaultExportSnapshot(snapshot: VaultExportSnapshot): void {
 }
 
 /** Copy a verified snapshot into a new isolated vault without touching existing vaults. */
-export async function importAsNewVault(db: Db, snapshot: VaultExportSnapshot, label: string): Promise<string> {
+export async function importAsNewVault(
+  db: Db,
+  snapshot: VaultExportSnapshot,
+  label: string,
+): Promise<string> {
   validateVaultExportSnapshot(snapshot);
   const newVaultId = randomUuid();
   const now = new Date().toISOString();
@@ -136,7 +168,8 @@ export async function importAsNewVault(db: Db, snapshot: VaultExportSnapshot, la
   const vault: SqlRow = {
     ...sourceVault,
     id: newVaultId,
-    vault_owner_label: label.trim() || `${String(sourceVault.vault_owner_label ?? 'Imported vault')} copy`,
+    vault_owner_label:
+      label.trim() || `${String(sourceVault.vault_owner_label ?? 'Imported vault')} copy`,
     demo_mode: 0,
     created_at: now,
     updated_at: now,
@@ -151,10 +184,18 @@ export async function importAsNewVault(db: Db, snapshot: VaultExportSnapshot, la
   await db.transaction(async (transactionDb) => {
     await insertVaultRow(transactionDb, vault);
     for (const row of snapshot.tables.categories) {
-      await insertRow(transactionDb, 'categories', { ...row, id: categoryIds.get(String(row.id))!, vault_id: newVaultId });
+      await insertRow(transactionDb, 'categories', {
+        ...row,
+        id: categoryIds.get(String(row.id))!,
+        vault_id: newVaultId,
+      });
     }
     for (const row of snapshot.tables.statement_imports) {
-      await insertRow(transactionDb, 'statement_imports', { ...row, id: importIds.get(String(row.id))!, vault_id: newVaultId });
+      await insertRow(transactionDb, 'statement_imports', {
+        ...row,
+        id: importIds.get(String(row.id))!,
+        vault_id: newVaultId,
+      });
     }
     for (const row of snapshot.tables.import_rows) {
       await insertRow(transactionDb, 'import_rows', {
@@ -162,7 +203,10 @@ export async function importAsNewVault(db: Db, snapshot: VaultExportSnapshot, la
         id: randomUuid(),
         import_id: importIds.get(String(row.import_id))!,
         vault_id: newVaultId,
-        suggested_category_id: row.suggested_category_id === null ? null : categoryIds.get(String(row.suggested_category_id))!,
+        suggested_category_id:
+          row.suggested_category_id === null
+            ? null
+            : categoryIds.get(String(row.suggested_category_id))!,
         duplicate_candidate_ids: '[]',
       });
     }
@@ -171,9 +215,15 @@ export async function importAsNewVault(db: Db, snapshot: VaultExportSnapshot, la
         ...row,
         id: randomUuid(),
         vault_id: newVaultId,
-        transaction_id: row.transaction_id === null ? null : transactionIds.get(String(row.transaction_id)) ?? null,
-        import_id: row.import_id === null ? null : importIds.get(String(row.import_id)) ?? null,
-        previous_category_id: row.previous_category_id === null ? null : categoryIds.get(String(row.previous_category_id)) ?? null,
+        transaction_id:
+          row.transaction_id === null
+            ? null
+            : (transactionIds.get(String(row.transaction_id)) ?? null),
+        import_id: row.import_id === null ? null : (importIds.get(String(row.import_id)) ?? null),
+        previous_category_id:
+          row.previous_category_id === null
+            ? null
+            : (categoryIds.get(String(row.previous_category_id)) ?? null),
         next_category_id: categoryIds.get(String(row.next_category_id))!,
       });
     }
@@ -191,15 +241,51 @@ export async function importAsNewVault(db: Db, snapshot: VaultExportSnapshot, la
         id: transactionIds.get(String(row.id))!,
         vault_id: newVaultId,
         category_id: row.category_id === null ? null : categoryIds.get(String(row.category_id))!,
-        statement_import_id: row.statement_import_id === null ? null : importIds.get(String(row.statement_import_id))!,
-        source_type: typeof row.source_type === 'string' && row.source_type !== 'demo' ? row.source_type : 'manual',
+        statement_import_id:
+          row.statement_import_id === null ? null : importIds.get(String(row.statement_import_id))!,
+        source_type:
+          typeof row.source_type === 'string' && row.source_type !== 'demo'
+            ? row.source_type
+            : 'manual',
         last_modified_by: 'web',
       });
     }
     // A copy is intentionally a personal vault. Do not carry demo metadata into it.
     void snapshot.tables.demo_datasets;
+    await ensureSubscriptionsCategory(transactionDb, newVaultId);
   });
   return newVaultId;
+}
+
+async function ensureSubscriptionsCategory(db: Db, vaultId: string): Promise<void> {
+  const existing = await db.get<{ id: string }>(
+    'SELECT id FROM categories WHERE vault_id = ? AND name = ?',
+    [vaultId, 'Subscriptions'],
+  );
+  if (existing) return;
+  const position = await db.get<{ position: number }>(
+    'SELECT COALESCE(MAX(position), -1) + 1 AS position FROM categories WHERE vault_id = ?',
+    [vaultId],
+  );
+  const now = new Date().toISOString();
+  await db.exec(
+    `INSERT INTO categories (id, vault_id, name, slug, kind, color_token, icon_name, position, is_active, created_at, updated_at, version)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      randomUuid(),
+      vaultId,
+      'Subscriptions',
+      'subscriptions',
+      'expense',
+      'plum',
+      'repeat',
+      position?.position ?? 0,
+      1,
+      now,
+      now,
+      1,
+    ],
+  );
 }
 
 /** Replace local records with an explicitly selected, password-verified snapshot. */
@@ -220,7 +306,11 @@ export async function clearLocalData(db: Db): Promise<void> {
   } catch (cause) {
     storageError = cause;
   }
-  if (closeError && storageError) throw new AggregateError([closeError, storageError], 'Local data and browser-key cleanup both failed.');
+  if (closeError && storageError)
+    throw new AggregateError(
+      [closeError, storageError],
+      'Local data and browser-key cleanup both failed.',
+    );
   if (closeError) throw closeError;
   if (storageError) throw storageError;
 }

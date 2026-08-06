@@ -1,5 +1,6 @@
 import type { Db, SqlRow } from '../storage/schema';
 import { applySchema, SCHEMA_VERSION } from '../storage/schema';
+import { randomUuid } from '../entities/ids';
 
 export const VAULT_EXPORT_FORMAT = 'expense-tracker-vault-v1' as const;
 
@@ -161,5 +162,24 @@ export async function replaceVaultWithExportSnapshot(db: Db, snapshot: VaultExpo
     for (const table of VAULT_EXPORT_TABLES) {
       for (const row of snapshot.tables[table]) await insertSnapshotRow(transactionDb, table, row);
     }
+    await ensureSubscriptionsCategory(transactionDb, String(snapshot.vault.id));
   });
+}
+
+async function ensureSubscriptionsCategory(db: Db, vaultId: string): Promise<void> {
+  const existing = await db.get<{ id: string }>(
+    'SELECT id FROM categories WHERE vault_id = ? AND name = ?',
+    [vaultId, 'Subscriptions'],
+  );
+  if (existing) return;
+  const position = await db.get<{ position: number }>(
+    'SELECT COALESCE(MAX(position), -1) + 1 AS position FROM categories WHERE vault_id = ?',
+    [vaultId],
+  );
+  const now = new Date().toISOString();
+  await db.exec(
+    `INSERT INTO categories (id, vault_id, name, slug, kind, color_token, icon_name, position, is_active, created_at, updated_at, version)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [randomUuid(), vaultId, 'Subscriptions', 'subscriptions', 'expense', 'plum', 'repeat', position?.position ?? 0, 1, now, now, 1],
+  );
 }

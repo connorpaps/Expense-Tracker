@@ -100,6 +100,7 @@ describe('relay server (T003)', () => {
         expect(message.response.checkpoint).toEqual({ web: 2 });
         expect(message.response.replay).toBe(false);
         expect(message.response.conflicting_mutation_ids).toEqual([]);
+        expect(message.response.accepted_mutation_ids).toEqual(['m-1', 'm-2', 'm-3']);
       }
       expect(handle.store.mutationCount('vault-1')).toBe(3);
       expect(handle.store.mutationCount('vault-2')).toBe(0);

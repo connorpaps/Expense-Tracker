@@ -6,7 +6,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { readStatementCsv, loadExpectedImport, listStatementCsvNames } from '@expense-tracker/fixtures';
+import {
+  readStatementCsv,
+  loadExpectedImport,
+  listStatementCsvNames,
+} from '@expense-tracker/fixtures';
 import { DEFAULT_CATEGORIES, categorySlug } from '@expense-tracker/domain';
 import type { Category } from '@expense-tracker/domain';
 import { parseFileInProcess } from '../src/features/imports/parse-file';
@@ -72,7 +76,7 @@ describe('web import contract (T025)', () => {
         expect(row?.parsed_merchant).toBe(golden.merchant_display);
         expect(row?.parsed_amount_minor).toBe(golden.amount_minor);
         expect(row?.parsed_currency).toBe(golden.currency);
-        expect(row?.user_decision).toBe('accept');
+        expect(row?.user_decision).toBe(row?.suggested_category_id ? 'accept' : 'pending');
       }
 
       // Golden error rows must be flagged and block commit.
@@ -87,11 +91,21 @@ describe('web import contract (T025)', () => {
         }
       }
 
+      // Valid rows without a deterministic category remain pending for explicit review.
+      for (const row of preview.rows.filter(
+        (candidate) => candidate.row_status === 'valid' && candidate.suggested_category_id === null,
+      )) {
+        expect(row.user_decision).toBe('pending');
+        expect(row.category_source).toBe('manual_required');
+      }
+
       // Commit-count invariants must hold.
       const counts = preview.commit_counts;
       expect(counts.accepted + counts.excluded + counts.unresolved).toBe(preview.rows.length);
       expect(counts.errors).toBe(preview.rows.filter((r) => r.row_status === 'error').length);
-      expect(counts.unresolved).toBe(preview.rows.filter((r) => r.user_decision === 'pending').length);
+      expect(counts.unresolved).toBe(
+        preview.rows.filter((r) => r.user_decision === 'pending').length,
+      );
       expect(counts.duplicate_candidates).toBe(
         preview.rows.filter((r) => r.row_status === 'duplicate_candidate').length,
       );
@@ -107,7 +121,6 @@ describe('web import contract (T025)', () => {
     const travel = preview.rows.find((r) => r.parsed_merchant === 'Uber *Trip');
     expect(travel?.suggested_category_id).toBe('cat-transportation');
   });
-
 
   it('treats an empty statement as a failed session with no rows', async () => {
     const preview = await previewFor('empty.csv');

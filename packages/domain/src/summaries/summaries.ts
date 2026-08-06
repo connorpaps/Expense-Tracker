@@ -15,6 +15,8 @@ export interface SummaryFilters {
   currency?: string | null;
   /** When true, exclude positive credit/refund transactions from the summary. */
   expensesOnly?: boolean;
+  /** Categories such as Transfers remain visible in history but are excluded from ordinary totals. */
+  excludeCategoryIds?: readonly string[];
 }
 
 /** Provenance for spending rows in a category; credits are intentionally excluded. */
@@ -66,6 +68,9 @@ export function computeSummary(
     if (tx.deleted_at !== null) continue;
     if (!rangeContains(range, tx.occurred_on)) continue;
     if (filters.categoryId !== undefined && filters.categoryId !== null && tx.category_id !== filters.categoryId) {
+      continue;
+    }
+    if (filters.excludeCategoryIds?.includes(tx.category_id ?? '')) {
       continue;
     }
     if (filters.currency !== undefined && filters.currency !== null && tx.currency !== filters.currency) {

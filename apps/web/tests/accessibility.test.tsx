@@ -48,8 +48,10 @@ function fakeDb(): Db {
       (sql.includes('FROM categories') ? categories.map(toRow) : []) as T[],
     get: async <T,>(sql: string, params: unknown[] = []) => {
       if (sql.includes('FROM categories')) {
-        const category = categories.find((candidate) => candidate.vault_id === params[0] && candidate.id === params[1]);
-        return category ? toRow(category) as T : undefined;
+        const category = categories.find(
+          (candidate) => candidate.vault_id === params[0] && candidate.id === params[1],
+        );
+        return category ? (toRow(category) as T) : undefined;
       }
       return undefined;
     },
@@ -119,7 +121,10 @@ describe('import components (T037)', () => {
 
     // Decisions are announced as radio groups and fire per-row callbacks.
     const group = screen.getAllByRole('group', { name: /Decision for Starbucks/ })[0]!;
-    expect(within(group).getByRole('button', { name: 'Accept' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(group).getByRole('button', { name: 'Accept' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     await user.click(within(group).getByRole('button', { name: 'Exclude' }));
     expect(onDecision).toHaveBeenCalledWith(expect.any(String), 'exclude');
 
@@ -146,10 +151,18 @@ describe('import components (T037)', () => {
     );
     expect(screen.getByRole('button', { name: 'Commit import' })).toBeDisabled();
 
-    rerender(<main><CommitBar counts={ready} onCommit={() => {}} onCancel={() => {}} /></main>);
+    rerender(
+      <main>
+        <CommitBar counts={ready} onCommit={() => {}} onCancel={() => {}} />
+      </main>,
+    );
     expect(screen.getByRole('button', { name: 'Commit import' })).toBeEnabled();
 
-    rerender(<main><CommitBar counts={ready} committed onCommit={() => {}} onCancel={() => {}} /></main>);
+    rerender(
+      <main>
+        <CommitBar counts={ready} committed onCommit={() => {}} onCancel={() => {}} />
+      </main>,
+    );
     expect(screen.getByRole('status')).toHaveTextContent('Import saved');
   });
 
@@ -173,7 +186,9 @@ describe('import components (T037)', () => {
       </div>,
     );
     const results = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
-    const serious = results.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? ''));
+    const serious = results.violations.filter((v) =>
+      ['serious', 'critical'].includes(v.impact ?? ''),
+    );
     expect(serious.map((v) => v.id)).toEqual([]);
   });
 });
@@ -191,7 +206,9 @@ describe('full import flow (T037)', () => {
     await user.upload(input, file);
 
     // Review stage with the parsed merchants.
-    expect(await screen.findByRole('table', { name: 'Imported transactions review' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('table', { name: 'Imported transactions review' }),
+    ).toBeInTheDocument();
     expect(screen.getByText('Starbucks')).toBeInTheDocument();
     expect(screen.getByText('Uber *Trip')).toBeInTheDocument();
 
@@ -202,7 +219,9 @@ describe('full import flow (T037)', () => {
 
     // The whole flow must be free of serious/critical violations.
     const results = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
-    const serious = results.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? ''));
+    const serious = results.violations.filter((v) =>
+      ['serious', 'critical'].includes(v.impact ?? ''),
+    );
     expect(serious.map((v) => v.id)).toEqual([]);
   }, 15_000);
 

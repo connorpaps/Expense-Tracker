@@ -19,7 +19,7 @@ const DEMO_TRANSACTIONS = [
   ['2026-07-01', 'Morning Roast Cafe', -675, 'Food and Dining'],
   ['2026-07-01', 'Metro Transit', -275, 'Transportation'],
   ['2026-07-02', 'Grocery Market', -8420, 'Food and Dining'],
-  ['2026-07-03', 'Monthly Streaming', -1599, 'Entertainment'],
+  ['2026-07-03', 'Monthly Streaming', -1599, 'Subscriptions'],
   ['2026-07-05', 'Pharmacy', -2345, 'Health'],
   ['2026-07-06', 'Bookstore', -1840, 'Shopping'],
   ['2026-07-08', 'Electric Utility', -5630, 'Bills and Utilities'],
@@ -73,7 +73,7 @@ export async function createLocalVault(
   const vault: LocalVault = {
     id: vaultId,
     vault_owner_label: label,
-    default_currency: 'USD',
+    default_currency: 'CAD',
     locale: 'en-US',
     week_start: 'locale_default',
     demo_mode: options.demoMode,
@@ -110,20 +110,23 @@ export async function createLocalVault(
         [randomUuid(), vaultId, 'Sample data — not your real finances', '2026-08-04-01', now],
       );
       for (const [occurredOn, merchant, amountMinor, categoryName] of DEMO_TRANSACTIONS) {
-        await insertTransaction(transactionDb, newTransaction({
-          id: randomUuid(),
-          vault_id: vaultId,
-          occurred_on: occurredOn,
-          merchant_display: merchant,
-          amount_minor: amountMinor,
-          currency: 'USD',
-          category_id: categoryIds.get(categoryName) ?? null,
-          category_source: 'default_rule',
-          category_confidence: 'high',
-          source_type: 'demo',
-          review_state: 'confirmed',
-          now,
-        }));
+        await insertTransaction(
+          transactionDb,
+          newTransaction({
+            id: randomUuid(),
+            vault_id: vaultId,
+            occurred_on: occurredOn,
+            merchant_display: merchant,
+            amount_minor: amountMinor,
+            currency: 'CAD',
+            category_id: categoryIds.get(categoryName) ?? null,
+            category_source: 'default_rule',
+            category_confidence: 'high',
+            source_type: 'demo',
+            review_state: 'confirmed',
+            now,
+          }),
+        );
       }
     }
   });

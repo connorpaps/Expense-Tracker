@@ -18,7 +18,7 @@ export interface Db {
   close(): Promise<void>;
 }
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const SCHEMA_DDL = `
 PRAGMA foreign_keys = ON;
@@ -239,6 +239,41 @@ export async function applySchema(db: Db): Promise<void> {
     await db.exec('CREATE TABLE IF NOT EXISTS category_correction_history (id TEXT PRIMARY KEY, vault_id TEXT NOT NULL REFERENCES vaults(id), transaction_id TEXT, import_id TEXT, merchant_normalized TEXT NOT NULL, previous_category_id TEXT, next_category_id TEXT NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL)');
     await db.exec('CREATE INDEX IF NOT EXISTS idx_category_corrections_vault ON category_correction_history(vault_id, created_at)');
     await db.exec('CREATE INDEX IF NOT EXISTS idx_category_corrections_merchant ON category_correction_history(vault_id, merchant_normalized, created_at)');
+  }
+  if (current < 4) {
+    // Version 4 adds the built-in Subscriptions category to existing vaults.
+    const vaults = await db.all<{ id: string }>('SELECT id FROM vaults WHERE deleted_at IS NULL');
+    for (const vault of vaults) {
+      const existing = await db.get<{ id: string }>(
+        'SELECT id FROM categories WHERE vault_id = ? AND name = ?',
+        [vault.id, 'Subscriptions'],
+      );
+      if (!existing) {
+        const position = await db.get<{ position: number }>(
+          'SELECT COALESCE(MAX(position), -1) + 1 AS position FROM categories WHERE vault_id = ?',
+          [vault.id],
+        );
+        const now = new Date().toISOString();
+        await db.exec(
+          `INSERT INTO categories (id, vault_id, name, slug, kind, color_token, icon_name, position, is_active, created_at, updated_at, version)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            `subscriptions-${vault.id}`,
+            vault.id,
+            'Subscriptions',
+            'subscriptions',
+            'expense',
+            'plum',
+            'repeat',
+            position?.position ?? 0,
+            1,
+            now,
+            now,
+            1,
+          ],
+        );
+      }
+    }
   }
   await db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }

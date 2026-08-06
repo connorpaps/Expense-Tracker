@@ -1,7 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { CommitCounts, ImportPreviewDto, UserDecision } from '@expense-tracker/contracts';
 import { ERROR_CODES, SAFE_MESSAGES, isAppError } from '@expense-tracker/contracts';
-import { commitImportToDb, listCategories, listRules, listTransactions } from '@expense-tracker/domain';
+import {
+  commitImportToDb,
+  listCategories,
+  listRules,
+  listTransactions,
+} from '@expense-tracker/domain';
 import type { Category, Db } from '@expense-tracker/domain';
 import type { ParseProgress } from '@expense-tracker/parsing';
 import { ImportDropzone } from './components/ImportDropzone';
@@ -21,14 +26,21 @@ interface ImportPageProps {
   parseFile?: ParseFileFn;
 }
 
-export function ImportPage({ db, vaultId, defaultCurrency = 'USD', parseFile = parseFileInWorker }: ImportPageProps) {
+export function ImportPage({
+  db,
+  vaultId,
+  defaultCurrency = 'CAD',
+  parseFile = parseFileInWorker,
+}: ImportPageProps) {
   const [stage, setStage] = useState<Stage>('idle');
   const [progress, setProgress] = useState<ParseProgress | null>(null);
   const [preview, setPreview] = useState<ImportPreviewDto | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [decisions, setDecisions] = useState<Map<string, UserDecision>>(new Map());
-  const [corrections, setCorrections] = useState<Map<string, { categoryId: string; rememberRule: boolean }>>(new Map());
+  const [corrections, setCorrections] = useState<
+    Map<string, { categoryId: string; rememberRule: boolean }>
+  >(new Map());
   const [categories, setCategories] = useState<Category[]>([]);
   const [committing, setCommitting] = useState(false);
 
@@ -47,7 +59,7 @@ export function ImportPage({ db, vaultId, defaultCurrency = 'USD', parseFile = p
       setCorrections(new Map());
 
       try {
-        const outcome = await parseFile(file, setProgress);
+        const outcome = await parseFile(file, setProgress, defaultCurrency);
         const categoryRows = await listCategories(db, vaultId);
         setCategories(categoryRows);
 
@@ -73,12 +85,13 @@ export function ImportPage({ db, vaultId, defaultCurrency = 'USD', parseFile = p
         // The raw failure is preserved for local debugging; the UI only shows a
         // safe message derived from the structured error code (if any).
         console.error('Import failed:', error);
-        const code = error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
+        const code =
+          error instanceof Error && 'code' in error ? String((error as { code: string }).code) : '';
         setStage('error');
         setErrorMessage(parseErrorMessage(code));
       }
     },
-    [db, vaultId, parseFile],
+    [db, vaultId, defaultCurrency, parseFile],
   );
 
   const handleDecision = useCallback((rowId: string, decision: 'accept' | 'exclude') => {
@@ -89,18 +102,28 @@ export function ImportPage({ db, vaultId, defaultCurrency = 'USD', parseFile = p
     });
   }, []);
 
-  const handleCategoryCorrection = useCallback((rowId: string, categoryId: string, rememberRule: boolean) => {
-    if (!categoryId) {
-      setCorrections((previous) => {
-        const next = new Map(previous);
-        next.delete(rowId);
-        return next;
-      });
-      return;
-    }
-    setCorrections((previous) => new Map(previous).set(rowId, { categoryId, rememberRule }));
-    setDecisions((previous) => new Map(previous).set(rowId, 'accept'));
-  }, []);
+  const handleCategoryCorrection = useCallback(
+    (rowId: string, categoryId: string, rememberRule: boolean) => {
+      if (!categoryId) {
+        setCorrections((previous) => {
+          const next = new Map(previous);
+          next.delete(rowId);
+          return next;
+        });
+        setDecisions((previous) => {
+          const next = new Map(previous);
+          const original = preview?.rows.find((row) => row.id === rowId);
+          if (original?.suggested_category_id === null) next.set(rowId, 'pending');
+          else next.delete(rowId);
+          return next;
+        });
+        return;
+      }
+      setCorrections((previous) => new Map(previous).set(rowId, { categoryId, rememberRule }));
+      setDecisions((previous) => new Map(previous).set(rowId, 'accept'));
+    },
+    [preview],
+  );
 
   const effectiveDecisions = useMemo(() => {
     const map = new Map<string, UserDecision>();
@@ -140,20 +163,23 @@ export function ImportPage({ db, vaultId, defaultCurrency = 'USD', parseFile = p
     if (committing) return;
     setCommitting(true);
     try {
-      const mutationCiphertext = await encryptMutationPayload({
-        import_id: preview.session.import_id,
-        decisions: [...effectiveDecisions.entries()],
-        corrections: [...corrections.entries()],
-        rows: preview.rows.map((row) => ({
-          id: row.id,
-          date: row.parsed_date,
-          merchant: row.parsed_merchant,
-          amount_minor: row.parsed_amount_minor,
-          currency: row.parsed_currency ?? defaultCurrency,
-          category_id: row.suggested_category_id,
-          decision: effectiveDecisions.get(row.id) ?? row.user_decision,
-        })),
-      }, `${vaultId}:statement-import:${preview.session.import_id}`);
+      const mutationCiphertext = await encryptMutationPayload(
+        {
+          import_id: preview.session.import_id,
+          decisions: [...effectiveDecisions.entries()],
+          corrections: [...corrections.entries()],
+          rows: preview.rows.map((row) => ({
+            id: row.id,
+            date: row.parsed_date,
+            merchant: row.parsed_merchant,
+            amount_minor: row.parsed_amount_minor,
+            currency: row.parsed_currency ?? defaultCurrency,
+            category_id: corrections.get(row.id)?.categoryId ?? row.suggested_category_id,
+            decision: effectiveDecisions.get(row.id) ?? row.user_decision,
+          })),
+        },
+        `${vaultId}:statement-import:${preview.session.import_id}`,
+      );
       await commitImportToDb(db, {
         session: {
           id: preview.session.import_id,
@@ -195,7 +221,10 @@ export function ImportPage({ db, vaultId, defaultCurrency = 'USD', parseFile = p
         now: new Date().toISOString(),
         lastModifiedBy: 'web',
         mutationDeviceId: 'web',
-        categoryCorrections: [...corrections.entries()].map(([rowId, correction]) => ({ rowId, ...correction })),
+        categoryCorrections: [...corrections.entries()].map(([rowId, correction]) => ({
+          rowId,
+          ...correction,
+        })),
         mutationCiphertext,
       });
       setStage('committed');
@@ -211,7 +240,16 @@ export function ImportPage({ db, vaultId, defaultCurrency = 'USD', parseFile = p
     } finally {
       setCommitting(false);
     }
-  }, [db, vaultId, defaultCurrency, preview, counts.unresolved, effectiveDecisions, corrections, committing]);
+  }, [
+    db,
+    vaultId,
+    defaultCurrency,
+    preview,
+    counts.unresolved,
+    effectiveDecisions,
+    corrections,
+    committing,
+  ]);
 
   const reset = useCallback(() => {
     setStage('idle');
@@ -227,7 +265,8 @@ export function ImportPage({ db, vaultId, defaultCurrency = 'USD', parseFile = p
       <header className="page__header">
         <h1 id="import-heading">Review import</h1>
         <p className="page__subtitle">
-          Statements are parsed on this device, shown for review, and only added to your history after you commit.
+          Statements are parsed on this device, shown for review, and only added to your history
+          after you commit.
         </p>
       </header>
 
@@ -244,7 +283,10 @@ export function ImportPage({ db, vaultId, defaultCurrency = 'USD', parseFile = p
             <div
               className="progress__bar"
               style={{
-                width: progress && progress.total > 0 ? `${Math.round((progress.current / progress.total) * 100)}%` : '30%',
+                width:
+                  progress && progress.total > 0
+                    ? `${Math.round((progress.current / progress.total) * 100)}%`
+                    : '30%',
               }}
             />
           </div>
@@ -264,7 +306,12 @@ export function ImportPage({ db, vaultId, defaultCurrency = 'USD', parseFile = p
             onDecision={handleDecision}
             onCategoryCorrection={handleCategoryCorrection}
           />
-          <CommitBar counts={counts} disabled={committing} onCommit={() => void handleCommit()} onCancel={reset} />
+          <CommitBar
+            counts={counts}
+            disabled={committing}
+            onCommit={() => void handleCommit()}
+            onCancel={reset}
+          />
         </div>
       )}
 

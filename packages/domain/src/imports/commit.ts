@@ -34,7 +34,10 @@ export interface CommitPlan {
   unresolved: CommitRow[];
 }
 
-export function planCommit(rows: ImportRowReview[], decisions: Map<string, UserDecision>): CommitPlan {
+export function planCommit(
+  rows: ImportRowReview[],
+  decisions: Map<string, UserDecision>,
+): CommitPlan {
   const accepted: CommitRow[] = [];
   const excluded: CommitRow[] = [];
   const unresolved: CommitRow[] = [];
@@ -72,7 +75,11 @@ export function buildTransactionsFromRows(
   const skippedRows: ImportRowReview[] = [];
 
   for (const { row } of plan.accepted) {
-    if (row.parsed_date === null || row.parsed_merchant === null || row.parsed_amount_minor === null) {
+    if (
+      row.parsed_date === null ||
+      row.parsed_merchant === null ||
+      row.parsed_amount_minor === null
+    ) {
       skippedRows.push(row);
       continue;
     }
@@ -147,7 +154,9 @@ export async function commitImportToDb(
   const existing = await getStatementImport(db, input.session.vault_id, input.session.id);
   if (existing?.status === 'committed') {
     const committed = await listTransactions(db, { vaultId: input.session.vault_id });
-    const transactions = committed.filter((transaction) => transaction.statement_import_id === input.session.id);
+    const transactions = committed.filter(
+      (transaction) => transaction.statement_import_id === input.session.id,
+    );
     return {
       importId: input.session.id,
       committedRows: transactions.length,
@@ -171,13 +180,19 @@ export async function commitImportToDb(
     sourceType: input.session.file_type,
   });
   if (built.skippedRows.length > 0) {
-    throw appError(ERROR_CODES.IMPORT_COMMIT_INCOMPLETE, 'Some accepted rows are invalid and must be reviewed again.', {
-      retryable: false,
-      rowReference: built.skippedRows[0]?.source_row_number ?? null,
-    });
+    throw appError(
+      ERROR_CODES.IMPORT_COMMIT_INCOMPLETE,
+      'Some accepted rows are invalid and must be reviewed again.',
+      {
+        retryable: false,
+        rowReference: built.skippedRows[0]?.source_row_number ?? null,
+      },
+    );
   }
 
-  const corrections = new Map((input.categoryCorrections ?? []).map((correction) => [correction.rowId, correction]));
+  const corrections = new Map(
+    (input.categoryCorrections ?? []).map((correction) => [correction.rowId, correction]),
+  );
   const correctedRows = plan.accepted.map(({ row }) => {
     const correction = corrections.get(row.id);
     if (!correction) return row;
@@ -188,7 +203,13 @@ export async function commitImportToDb(
       category_confidence: 'confirmed' as const,
     };
   });
-  const correctedPlan: CommitPlan = { ...plan, accepted: correctedRows.map((row) => ({ row, decision: 'accept' })) };
+  const correctedPlan: CommitPlan = {
+    ...plan,
+    accepted: correctedRows.map((row) => ({ row, decision: 'accept' })),
+  };
+  if (correctedPlan.accepted.some(({ row }) => row.suggested_category_id === null)) {
+    throw commitError();
+  }
   const correctedBuilt = buildTransactionsFromRows(correctedPlan, {
     vaultId: input.session.vault_id,
     importId: input.session.id,
@@ -198,18 +219,28 @@ export async function commitImportToDb(
     sourceType: input.session.file_type,
   });
   if (correctedBuilt.skippedRows.length > 0) {
-    throw appError(ERROR_CODES.IMPORT_COMMIT_INCOMPLETE, 'Some corrected rows are invalid and must be reviewed again.', {
-      retryable: false,
-      rowReference: correctedBuilt.skippedRows[0]?.source_row_number ?? null,
-    });
+    throw appError(
+      ERROR_CODES.IMPORT_COMMIT_INCOMPLETE,
+      'Some corrected rows are invalid and must be reviewed again.',
+      {
+        retryable: false,
+        rowReference: correctedBuilt.skippedRows[0]?.source_row_number ?? null,
+      },
+    );
   }
   const persistedRows = [...correctedPlan.accepted, ...plan.excluded].map(({ row }) => row);
   let alreadyCommitted: PersistedImportCommit | null = null;
   await db.transaction(async (transactionDb) => {
-    const transactionImport = await getStatementImport(transactionDb, input.session.vault_id, input.session.id);
+    const transactionImport = await getStatementImport(
+      transactionDb,
+      input.session.vault_id,
+      input.session.id,
+    );
     if (transactionImport?.status === 'committed') {
       const committed = await listTransactions(transactionDb, { vaultId: input.session.vault_id });
-      const transactions = committed.filter((transaction) => transaction.statement_import_id === input.session.id);
+      const transactions = committed.filter(
+        (transaction) => transaction.statement_import_id === input.session.id,
+      );
       alreadyCommitted = {
         importId: input.session.id,
         committedRows: transactions.length,
@@ -228,12 +259,13 @@ export async function commitImportToDb(
     for (const { row } of correctedPlan.accepted) {
       const correction = corrections.get(row.id);
       if (!correction) continue;
-      const previousCategoryId = input.rows.find((candidate) => candidate.id === row.id)?.suggested_category_id ?? null;
+      const previousCategoryId =
+        input.rows.find((candidate) => candidate.id === row.id)?.suggested_category_id ?? null;
       if (previousCategoryId !== correction.categoryId) {
         await recordCategoryCorrection(transactionDb, {
-        vaultId: input.session.vault_id,
-        importId: input.session.id,
-        merchant: row.parsed_merchant ?? '',
+          vaultId: input.session.vault_id,
+          importId: input.session.id,
+          merchant: row.parsed_merchant ?? '',
           previousCategoryId,
           nextCategoryId: correction.categoryId,
           now: input.now,
@@ -249,19 +281,33 @@ export async function commitImportToDb(
       }
     }
     await appendMutation(transactionDb, {
-        mutationId: `import-commit-${input.session.id}`,
-        vaultId: input.session.vault_id,
-        deviceId: input.mutationDeviceId ?? 'web',
-        clock: input.mutationClock ?? await nextMutationClock(transactionDb, input.session.vault_id, input.mutationDeviceId ?? 'web'),
-        entityType: 'statement_import',
-        entityId: input.session.id,
-        operation: 'import_commit',
-        baseVersion: 0,
-        changedFields: ['transaction_ids', ...(corrections.size > 0 ? ['category_id', 'category_source', 'category_confidence', 'correction_history'] : []), ...(Array.from(corrections.values()).some((correction) => correction.rememberRule) ? ['categorization_rule', 'matcher', 'evidence_count', 'confidence', 'is_active'] : [])],
-        ciphertext: input.mutationCiphertext,
-        origin: 'importer',
-        now: input.now,
-      });
+      mutationId: `import-commit-${input.session.id}`,
+      vaultId: input.session.vault_id,
+      deviceId: input.mutationDeviceId ?? 'web',
+      clock:
+        input.mutationClock ??
+        (await nextMutationClock(
+          transactionDb,
+          input.session.vault_id,
+          input.mutationDeviceId ?? 'web',
+        )),
+      entityType: 'statement_import',
+      entityId: input.session.id,
+      operation: 'import_commit',
+      baseVersion: 0,
+      changedFields: [
+        'transaction_ids',
+        ...(corrections.size > 0
+          ? ['category_id', 'category_source', 'category_confidence', 'correction_history']
+          : []),
+        ...(Array.from(corrections.values()).some((correction) => correction.rememberRule)
+          ? ['categorization_rule', 'matcher', 'evidence_count', 'confidence', 'is_active']
+          : []),
+      ],
+      ciphertext: input.mutationCiphertext,
+      origin: 'importer',
+      now: input.now,
+    });
     await updateImportStatus(transactionDb, input.session.vault_id, input.session.id, {
       status: 'committed',
       completed_at: input.now,
@@ -291,7 +337,11 @@ export async function cancelImportToDb(
 }
 
 export function commitError() {
-  return appError(ERROR_CODES.IMPORT_COMMIT_INCOMPLETE, 'Some rows still need a decision before this import can be saved.', {
-    retryable: false,
-  });
+  return appError(
+    ERROR_CODES.IMPORT_COMMIT_INCOMPLETE,
+    'Some rows still need a decision before this import can be saved.',
+    {
+      retryable: false,
+    },
+  );
 }

@@ -7,8 +7,9 @@ import { ImportPage } from './features/imports/ImportPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { SyncPage } from './features/sync/SyncPage';
 import { LocalStatus } from './components/LocalStatus';
-import { openVaultStore, refreshVaultStore } from './local';
+import { createLocalMutationDecoder, decryptMutationPayload, openVaultStore, refreshVaultStore } from './local';
 import type { LocalVault } from '@expense-tracker/domain';
+import type { WebSyncConfig } from './local';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Overview', end: true },
@@ -93,6 +94,21 @@ export function App() {
     );
   }
 
+  const syncConfig = import.meta.env.VITE_RELAY_URL && import.meta.env.VITE_RELAY_DEVICE_ID
+    ? {
+      relayUrl: import.meta.env.VITE_RELAY_URL,
+      deviceId: import.meta.env.VITE_RELAY_DEVICE_ID,
+      authorizationToken: import.meta.env.VITE_RELAY_AUTH_TOKEN,
+    } satisfies WebSyncConfig
+    : undefined;
+  // The browser decoder intentionally uses the same-origin, non-exportable
+  // mutation key. It is enabled only for an explicit local loopback relay;
+  // cross-device vault-key delivery remains a separate iOS/LAN security gate.
+  const relayIsLocalLoopback = Boolean(syncConfig?.relayUrl && /^(ws|wss):\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/u.test(syncConfig.relayUrl));
+  const remoteMutationDecoder = relayIsLocalLoopback
+    ? createLocalMutationDecoder({ decrypt: decryptMutationPayload })
+    : undefined;
+
   return (
     <div className="app-shell">
       <nav className="app-nav" aria-label="Primary">
@@ -131,7 +147,7 @@ export function App() {
           <Route path="/transactions" element={<TransactionsPage db={session.db} vaultId={session.vaultId} defaultCurrency={session.defaultCurrency} />} />
           <Route path="/import" element={<ImportPage db={session.db} vaultId={session.vaultId} defaultCurrency={session.defaultCurrency} />} />
           <Route path="/settings" element={<SettingsPage db={session.db} vaultId={session.vaultId} onVaultChange={(next) => { setSession(next); (window as unknown as { __vaultStore?: VaultSession }).__vaultStore = next; }} />} />
-          <Route path="/sync" element={<SyncPage db={session.db} vaultId={session.vaultId} />} />
+          <Route path="/sync" element={<SyncPage db={session.db} vaultId={session.vaultId} syncConfig={syncConfig} remoteMutationDecoder={remoteMutationDecoder} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

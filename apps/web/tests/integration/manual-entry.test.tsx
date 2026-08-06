@@ -6,9 +6,11 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Db, SqlRow } from '@expense-tracker/domain';
 import { TransactionsPage } from '../../src/features/transactions/TransactionsPage';
+import { encryptMutationPayload, mutationEnvelopeContext } from '../../src/local';
 
 vi.mock('../../src/local', () => ({
   encryptMutationPayload: vi.fn(async () => 'opaque-ciphertext'),
+  mutationEnvelopeContext: vi.fn((input: unknown) => JSON.stringify(input)),
 }));
 
 const categoryRow: SqlRow = {
@@ -26,13 +28,18 @@ const categoryRow: SqlRow = {
   version: 1,
 };
 
-function createFakeDb(): Db {
+type ManualEntryTestDb = Db & { mutations: SqlRow[] };
+
+function createFakeDb(): ManualEntryTestDb {
   const transactions: SqlRow[] = [];
   const mutations: SqlRow[] = [];
 
   const db: Db = {
     async exec(sql, params = []) {
-      if (sql.includes('INSERT INTO mutation_log') || sql.includes('INSERT OR IGNORE INTO mutation_log')) {
+      if (
+        sql.includes('INSERT INTO mutation_log') ||
+        sql.includes('INSERT OR IGNORE INTO mutation_log')
+      ) {
         mutations.push({
           id: params[0] as unknown as string,
           vault_id: params[1] as unknown as string,
@@ -54,7 +61,29 @@ function createFakeDb(): Db {
           last_error_code: params[17] as unknown as string | null,
         });
       } else if (sql.includes('INSERT INTO transactions')) {
-        const [id, vaultId, occurredOn, merchant, original, amount, currency, categoryId, categorySource, categoryConfidence, note, sourceType, importId, sourceRowKey, reviewState, originalPayload, createdAt, updatedAt, deletedAt, version, modifiedBy] = params;
+        const [
+          id,
+          vaultId,
+          occurredOn,
+          merchant,
+          original,
+          amount,
+          currency,
+          categoryId,
+          categorySource,
+          categoryConfidence,
+          note,
+          sourceType,
+          importId,
+          sourceRowKey,
+          reviewState,
+          originalPayload,
+          createdAt,
+          updatedAt,
+          deletedAt,
+          version,
+          modifiedBy,
+        ] = params;
         transactions.push({
           id: id as unknown as string,
           vault_id: vaultId as unknown as string,
@@ -80,7 +109,9 @@ function createFakeDb(): Db {
         });
       } else if (sql.startsWith('UPDATE transactions SET deleted_at')) {
         const [deletedAt, updatedAt, modifiedBy, vaultId, id] = params;
-        const row = transactions.find((candidate) => candidate.vault_id === vaultId && candidate.id === id);
+        const row = transactions.find(
+          (candidate) => candidate.vault_id === vaultId && candidate.id === id,
+        );
         if (row) {
           row.deleted_at = deletedAt as unknown as string;
           row.updated_at = updatedAt as unknown as string;
@@ -90,7 +121,9 @@ function createFakeDb(): Db {
       } else if (sql.startsWith('UPDATE transactions SET')) {
         const vaultId = params[params.length - 2] as unknown as string;
         const id = params[params.length - 1] as unknown as string;
-        const row = transactions.find((candidate) => candidate.vault_id === vaultId && candidate.id === id);
+        const row = transactions.find(
+          (candidate) => candidate.vault_id === vaultId && candidate.id === id,
+        );
         if (row) {
           const updatedAt = params[0] as unknown as string;
           const modifiedBy = params[1] as unknown as string;
@@ -98,7 +131,8 @@ function createFakeDb(): Db {
           row.last_modified_by = modifiedBy;
           row.version = (row.version as number) + 1;
           if (sql.includes('occurred_on = ?')) row.occurred_on = params[2] as unknown as string;
-          if (sql.includes('merchant_display = ?')) row.merchant_display = params[3] as unknown as string;
+          if (sql.includes('merchant_display = ?'))
+            row.merchant_display = params[3] as unknown as string;
           if (sql.includes('amount_minor = ?')) row.amount_minor = params[4] as number;
           if (sql.includes('category_id = ?')) row.category_id = params[5] as unknown as string;
           if (sql.includes('note = ?')) row.note = params[6] as unknown as string | null;
@@ -110,17 +144,34 @@ function createFakeDb(): Db {
       if (sql.includes('FROM categories')) return [categoryRow] as T[];
       if (sql.includes('FROM transactions')) {
         const vaultId = params[0] as unknown as unknown as string;
-        const search = sql.includes('merchant_display LIKE') ? String(params[1] ?? '').replaceAll('%', '') : '';
-        return transactions.filter((row) => row.vault_id === vaultId && row.deleted_at === null && (!search || String(row.merchant_display).includes(search))) as T[];
+        const search = sql.includes('merchant_display LIKE')
+          ? String(params[1] ?? '').replaceAll('%', '')
+          : '';
+        return transactions.filter(
+          (row) =>
+            row.vault_id === vaultId &&
+            row.deleted_at === null &&
+            (!search || String(row.merchant_display).includes(search)),
+        ) as T[];
       }
       return [] as T[];
     },
     async get<T extends SqlRow = SqlRow>(sql: string, params = []) {
-      if (sql.includes('FROM categories')) return (params[0] === categoryRow.vault_id && params[1] === categoryRow.id ? categoryRow : undefined) as unknown as T | undefined;
-      if (sql.includes('FROM mutation_log WHERE')) return mutations.find((row) => row.vault_id === params[0] && row.id === params[1]) as unknown as T | undefined;
+      if (sql.includes('FROM categories'))
+        return (params[0] === categoryRow.vault_id && params[1] === categoryRow.id
+          ? categoryRow
+          : undefined) as unknown as T | undefined;
+      if (sql.includes('FROM mutation_log WHERE'))
+        return mutations.find(
+          (row) => row.vault_id === params[0] && row.id === params[1],
+        ) as unknown as T | undefined;
       if (sql.includes('MAX(lamport_clock)')) {
-        const rows = mutations.filter((row) => row.vault_id === params[0] && row.device_id === params[1]);
-        return { lamport: rows.reduce((max, row) => Math.max(max, row.lamport_clock as number), 0) } as unknown as T;
+        const rows = mutations.filter(
+          (row) => row.vault_id === params[0] && row.device_id === params[1],
+        );
+        return {
+          lamport: rows.reduce((max, row) => Math.max(max, row.lamport_clock as number), 0),
+        } as unknown as T;
       }
       return undefined;
     },
@@ -129,13 +180,19 @@ function createFakeDb(): Db {
     },
     async close() {},
   };
-  return db;
+  return Object.assign(db, { mutations });
 }
 
 describe('US2 web manual entry', () => {
   beforeEach(() => {
-    vi.stubGlobal('crypto', { ...globalThis.crypto, randomUUID: vi.fn(() => `id-${Math.random()}`) });
-    vi.stubGlobal('confirm', vi.fn(() => true));
+    vi.stubGlobal('crypto', {
+      ...globalThis.crypto,
+      randomUUID: vi.fn(() => `id-${Math.random()}`),
+    });
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => true),
+    );
   });
 
   afterEach(() => {
@@ -144,7 +201,12 @@ describe('US2 web manual entry', () => {
 
   it('validates, creates, edits, and deletes a transaction with local feedback', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><TransactionsPage db={createFakeDb()} vaultId="vault-test" /></MemoryRouter>);
+    const db = createFakeDb();
+    render(
+      <MemoryRouter>
+        <TransactionsPage db={db} vaultId="vault-test" />
+      </MemoryRouter>,
+    );
 
     await screen.findByRole('heading', { name: 'Transactions' });
     await user.click(screen.getByRole('button', { name: 'Add expense' }));
@@ -157,6 +219,13 @@ describe('US2 web manual entry', () => {
     await user.click(screen.getByRole('button', { name: 'Save expense' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Expense saved locally.');
     expect(screen.getByText('Corner Cafe')).toBeInTheDocument();
+    const encryptedContext = vi.mocked(mutationEnvelopeContext).mock.calls[0]?.[0] as {
+      mutation_id: string;
+    };
+    expect(db.mutations[0]?.id).toBe(encryptedContext.mutation_id);
+    expect(vi.mocked(encryptMutationPayload).mock.calls[0]?.[1]).toBe(
+      JSON.stringify(encryptedContext),
+    );
 
     await user.click(screen.getByRole('button', { name: 'Edit' }));
     const merchant = screen.getByRole('textbox', { name: 'Merchant' });
@@ -174,7 +243,9 @@ describe('US2 web manual entry', () => {
 
     confirm.mockReturnValueOnce(true);
     await user.click(screen.getByRole('button', { name: 'Delete' }));
-    await waitFor(() => expect(screen.getByText('Transaction deleted locally.')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Transaction deleted locally.')).toBeInTheDocument(),
+    );
     expect(screen.queryByText('Corner Cafe Updated')).not.toBeInTheDocument();
   });
 });

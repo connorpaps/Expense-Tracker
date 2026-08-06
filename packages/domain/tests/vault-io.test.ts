@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { VAULT_EXPORT_FORMAT, validateVaultExportSnapshot } from '../src';
+import {
+  VAULT_EXPORT_FORMAT,
+  replaceVaultWithExportSnapshot,
+  validateVaultExportSnapshot,
+} from '../src';
+import { applySchema } from '../src/storage/schema';
+import { listCategories } from '../src/storage/repository';
+import { withNodeDb } from './support/node-db';
 import type { SqlRow } from '../src/storage/schema';
 import type { VaultExportSnapshot } from '../src/vault-io';
 
@@ -18,14 +25,63 @@ const vault: SqlRow = {
 };
 
 function row(table: 'categories' | 'transactions' | 'statement_imports'): SqlRow {
-  if (table === 'categories') return {
-    id: 'category-1', vault_id: vaultId, name: 'Food', slug: 'food', kind: 'expense', color_token: 'copper', icon_name: 'utensils', position: 0, is_active: 1, created_at: now, updated_at: now, version: 1,
-  };
-  if (table === 'statement_imports') return {
-    id: 'import-1', vault_id: vaultId, file_name: 'statement.csv', file_type: 'csv', file_size_bytes: 1, source_fingerprint: 'fingerprint', bank_profile: null, parser_version: 'test', status: 'committed', total_rows: 0, recognized_rows: 0, warning_count: 0, error_count: 0, storage_reference: null, created_at: now, completed_at: now, deleted_at: null,
-  };
+  if (table === 'categories')
+    return {
+      id: 'category-1',
+      vault_id: vaultId,
+      name: 'Food',
+      slug: 'food',
+      kind: 'expense',
+      color_token: 'copper',
+      icon_name: 'utensils',
+      position: 0,
+      is_active: 1,
+      created_at: now,
+      updated_at: now,
+      version: 1,
+    };
+  if (table === 'statement_imports')
+    return {
+      id: 'import-1',
+      vault_id: vaultId,
+      file_name: 'statement.csv',
+      file_type: 'csv',
+      file_size_bytes: 1,
+      source_fingerprint: 'fingerprint',
+      bank_profile: null,
+      parser_version: 'test',
+      status: 'committed',
+      total_rows: 0,
+      recognized_rows: 0,
+      warning_count: 0,
+      error_count: 0,
+      storage_reference: null,
+      created_at: now,
+      completed_at: now,
+      deleted_at: null,
+    };
   return {
-    id: 'transaction-1', vault_id: vaultId, occurred_on: '2026-08-04', merchant_display: 'Cafe', merchant_original: null, amount_minor: -100, currency: 'USD', category_id: 'category-1', category_source: 'user', category_confidence: 'confirmed', note: null, source_type: 'csv', statement_import_id: 'import-1', source_row_key: null, review_state: 'confirmed', original_payload: null, created_at: now, updated_at: now, deleted_at: null, version: 1, last_modified_by: 'web',
+    id: 'transaction-1',
+    vault_id: vaultId,
+    occurred_on: '2026-08-04',
+    merchant_display: 'Cafe',
+    merchant_original: null,
+    amount_minor: -100,
+    currency: 'USD',
+    category_id: 'category-1',
+    category_source: 'user',
+    category_confidence: 'confirmed',
+    note: null,
+    source_type: 'csv',
+    statement_import_id: 'import-1',
+    source_row_key: null,
+    review_state: 'confirmed',
+    original_payload: null,
+    created_at: now,
+    updated_at: now,
+    deleted_at: null,
+    version: 1,
+    last_modified_by: 'web',
   };
 }
 
@@ -54,19 +110,62 @@ describe('shared vault export validation (T066)', () => {
   });
 
   it('rejects a snapshot newer than the current schema or missing a table', () => {
-    expect(() => validateVaultExportSnapshot(snapshot({ schema_version: 999 }))).toThrow(/too new/i);
+    expect(() => validateVaultExportSnapshot(snapshot({ schema_version: 999 }))).toThrow(
+      /too new/i,
+    );
     const invalid = snapshot();
     delete (invalid.tables as Partial<typeof invalid.tables>).demo_datasets;
     expect(() => validateVaultExportSnapshot(invalid)).toThrow(/missing its demo_datasets/i);
   });
 
+  it('adds Subscriptions while restoring a pre-v4 snapshot and does not duplicate it', async () => {
+    await withNodeDb(async (db) => {
+      await applySchema(db);
+      await replaceVaultWithExportSnapshot(db, snapshot({ schema_version: 3 }));
+      const categories = await listCategories(db, vaultId);
+      expect(categories.filter((category) => category.name === 'Subscriptions')).toHaveLength(1);
+      await replaceVaultWithExportSnapshot(db, {
+        ...snapshot({ schema_version: 4 }),
+        tables: {
+          ...snapshot().tables,
+          categories: [
+            ...snapshot().tables.categories,
+            {
+              id: 'category-subscriptions',
+              vault_id: vaultId,
+              name: 'Subscriptions',
+              slug: 'subscriptions',
+              kind: 'expense',
+              color_token: 'plum',
+              icon_name: 'repeat',
+              position: 1,
+              is_active: 1,
+              created_at: now,
+              updated_at: now,
+              version: 1,
+            },
+          ],
+        },
+      });
+      expect(
+        (await listCategories(db, vaultId)).filter((category) => category.name === 'Subscriptions'),
+      ).toHaveLength(1);
+    });
+  });
+
   it('rejects cross-vault records and dangling references', () => {
     const crossVault = snapshot();
-    crossVault.tables.categories[0] = { ...crossVault.tables.categories[0]!, vault_id: 'other-vault' };
+    crossVault.tables.categories[0] = {
+      ...crossVault.tables.categories[0]!,
+      vault_id: 'other-vault',
+    };
     expect(() => validateVaultExportSnapshot(crossVault)).toThrow(/another vault/i);
 
     const dangling = snapshot();
-    dangling.tables.transactions[0] = { ...dangling.tables.transactions[0]!, category_id: 'missing-category' };
+    dangling.tables.transactions[0] = {
+      ...dangling.tables.transactions[0]!,
+      category_id: 'missing-category',
+    };
     expect(() => validateVaultExportSnapshot(dangling)).toThrow(/unknown category/i);
   });
 });

@@ -60,13 +60,31 @@ export async function insertVault(db: Db, vault: LocalVault): Promise<void> {
 }
 
 export async function getVault(db: Db, vaultId: string): Promise<LocalVault | null> {
-  const row = await db.get<SqlRow>('SELECT * FROM vaults WHERE id = ? AND deleted_at IS NULL', [vaultId]);
+  const row = await db.get<SqlRow>('SELECT * FROM vaults WHERE id = ? AND deleted_at IS NULL', [
+    vaultId,
+  ]);
   return row ? mapVault(row) : null;
 }
 
 export async function listVaults(db: Db): Promise<LocalVault[]> {
-  const rows = await db.all<SqlRow>('SELECT * FROM vaults WHERE deleted_at IS NULL ORDER BY created_at ASC');
+  const rows = await db.all<SqlRow>(
+    'SELECT * FROM vaults WHERE deleted_at IS NULL ORDER BY created_at ASC',
+  );
   return rows.map(mapVault);
+}
+
+export async function updateVault(
+  db: Db,
+  vaultId: string,
+  patch: { default_currency: string; updated_at: string },
+): Promise<void> {
+  if (!isCurrencyCode(patch.default_currency)) {
+    throw new Error('Currency must be a supported ISO code.');
+  }
+  await db.exec(
+    'UPDATE vaults SET default_currency = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
+    [patch.default_currency, patch.updated_at, vaultId],
+  );
 }
 
 export async function softDeleteVault(db: Db, vaultId: string, deletedAt: string): Promise<void> {
@@ -84,7 +102,7 @@ function mapVault(row: SqlRow): LocalVault {
     default_currency: row.default_currency as string,
     locale: row.locale as string,
     week_start: row.week_start as LocalVault['week_start'],
-    demo_mode: row.demo_mode === 1,
+    demo_mode: isSqliteBooleanTrue(row.demo_mode),
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     deleted_at: (row.deleted_at as string | null) ?? null,
@@ -154,7 +172,11 @@ export async function insertCategory(db: Db, category: Category): Promise<void> 
       category.id,
       category.vault_id,
       name,
-      category.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+      category.slug ||
+        name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, ''),
       category.kind,
       category.color_token,
       category.icon_name,
@@ -175,11 +197,15 @@ export async function listCategories(db: Db, vaultId: string): Promise<Category[
   return rows.map(mapCategory);
 }
 
-export async function getCategory(db: Db, vaultId: string, categoryId: string): Promise<Category | null> {
-  const row = await db.get<SqlRow>(
-    'SELECT * FROM categories WHERE vault_id = ? AND id = ?',
-    [vaultId, categoryId],
-  );
+export async function getCategory(
+  db: Db,
+  vaultId: string,
+  categoryId: string,
+): Promise<Category | null> {
+  const row = await db.get<SqlRow>('SELECT * FROM categories WHERE vault_id = ? AND id = ?', [
+    vaultId,
+    categoryId,
+  ]);
   return row ? mapCategory(row) : null;
 }
 
@@ -254,7 +280,11 @@ export async function reorderCategories(
 ): Promise<void> {
   const categories = await listCategories(db, vaultId);
   const known = new Set(categories.map((category) => category.id));
-  if (orderedCategoryIds.length !== categories.length || new Set(orderedCategoryIds).size !== categories.length || orderedCategoryIds.some((id) => !known.has(id))) {
+  if (
+    orderedCategoryIds.length !== categories.length ||
+    new Set(orderedCategoryIds).size !== categories.length ||
+    orderedCategoryIds.some((id) => !known.has(id))
+  ) {
     throw new Error('Category order must include every category in this vault exactly once.');
   }
   for (const [position, categoryId] of orderedCategoryIds.entries()) {
@@ -275,9 +305,10 @@ export async function mergeCategory(
   if (sourceCategoryId === targetCategoryId) throw new Error('Choose a different target category.');
   const source = await getCategory(db, vaultId, sourceCategoryId);
   const target = await getCategory(db, vaultId, targetCategoryId);
-  if (!source || !target || !target.is_active) throw new Error('The merge target must be an active category in this vault.');
+  if (!source || !target || !target.is_active)
+    throw new Error('The merge target must be an active category in this vault.');
   await db.exec(
-    'UPDATE transactions SET category_id = ?, category_source = \'user\', category_confidence = \'confirmed\', updated_at = ?, version = version + 1 WHERE vault_id = ? AND category_id = ?',
+    "UPDATE transactions SET category_id = ?, category_source = 'user', category_confidence = 'confirmed', updated_at = ?, version = version + 1 WHERE vault_id = ? AND category_id = ?",
     [targetCategoryId, updatedAt, vaultId, sourceCategoryId],
   );
   await db.exec(
@@ -290,6 +321,11 @@ export async function mergeCategory(
   );
 }
 
+/** Normalize SQLite INTEGER booleans across adapters (0/1, strings, or booleans). */
+function isSqliteBooleanTrue(value: unknown): boolean {
+  return value === true || value === 1 || value === '1' || value === 'true';
+}
+
 function mapCategory(row: SqlRow): Category {
   return {
     id: row.id as string,
@@ -300,7 +336,7 @@ function mapCategory(row: SqlRow): Category {
     color_token: row.color_token as string,
     icon_name: row.icon_name as string,
     position: row.position as number,
-    is_active: row.is_active === 1,
+    is_active: isSqliteBooleanTrue(row.is_active),
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     version: row.version as number,
@@ -314,7 +350,8 @@ function mapCategory(row: SqlRow): Category {
 export async function insertTransaction(db: Db, tx: Transaction): Promise<void> {
   if (!tx.merchant_display.trim()) throw new Error('Merchant is required.');
   if (!isValidIsoDate(tx.occurred_on)) throw new Error('Date must be a valid ISO calendar date.');
-  if (!Number.isSafeInteger(tx.amount_minor) || tx.amount_minor === 0) throw new Error('Amount must be a non-zero integer.');
+  if (!Number.isSafeInteger(tx.amount_minor) || tx.amount_minor === 0)
+    throw new Error('Amount must be a non-zero integer.');
   if (!isCurrencyCode(tx.currency)) throw new Error('Currency must be a supported ISO code.');
   if (tx.category_id) {
     const category = await getCategory(db, tx.vault_id, tx.category_id);
@@ -349,11 +386,15 @@ export async function insertTransaction(db: Db, tx: Transaction): Promise<void> 
   );
 }
 
-export async function getTransaction(db: Db, vaultId: string, txId: string): Promise<Transaction | null> {
-  const row = await db.get<SqlRow>(
-    'SELECT * FROM transactions WHERE vault_id = ? AND id = ?',
-    [vaultId, txId],
-  );
+export async function getTransaction(
+  db: Db,
+  vaultId: string,
+  txId: string,
+): Promise<Transaction | null> {
+  const row = await db.get<SqlRow>('SELECT * FROM transactions WHERE vault_id = ? AND id = ?', [
+    vaultId,
+    txId,
+  ]);
   return row ? mapTransaction(row) : null;
 }
 
@@ -395,10 +436,21 @@ export async function listTransactions(db: Db, query: TransactionQuery): Promise
   return rows.map(mapTransaction);
 }
 
-export async function updateTransaction(db: Db, vaultId: string, txId: string, patch: TransactionPatch): Promise<void> {
-  if (patch.merchant_display !== undefined && !patch.merchant_display.trim()) throw new Error('Merchant is required.');
-  if (patch.amount_minor !== undefined && (!Number.isSafeInteger(patch.amount_minor) || patch.amount_minor === 0)) throw new Error('Amount must be a non-zero integer.');
-  if (patch.occurred_on !== undefined && !isValidIsoDate(patch.occurred_on)) throw new Error('Date must be a valid ISO calendar date.');
+export async function updateTransaction(
+  db: Db,
+  vaultId: string,
+  txId: string,
+  patch: TransactionPatch,
+): Promise<void> {
+  if (patch.merchant_display !== undefined && !patch.merchant_display.trim())
+    throw new Error('Merchant is required.');
+  if (
+    patch.amount_minor !== undefined &&
+    (!Number.isSafeInteger(patch.amount_minor) || patch.amount_minor === 0)
+  )
+    throw new Error('Amount must be a non-zero integer.');
+  if (patch.occurred_on !== undefined && !isValidIsoDate(patch.occurred_on))
+    throw new Error('Date must be a valid ISO calendar date.');
   if (patch.category_id !== undefined && patch.category_id) {
     const category = await getCategory(db, vaultId, patch.category_id);
     if (!category || !category.is_active) throw new Error('Category must be active in this vault.');
@@ -465,7 +517,8 @@ function mapTransaction(row: SqlRow): Transaction {
     currency: row.currency as string,
     category_id: (row.category_id as string | null) ?? null,
     category_source: (row.category_source as Transaction['category_source'] | null) ?? null,
-    category_confidence: (row.category_confidence as Transaction['category_confidence'] | null) ?? null,
+    category_confidence:
+      (row.category_confidence as Transaction['category_confidence'] | null) ?? null,
     note: (row.note as string | null) ?? null,
     source_type: row.source_type as Transaction['source_type'],
     statement_import_id: (row.statement_import_id as string | null) ?? null,
@@ -530,10 +583,17 @@ export async function updateImportStatus(
     params.push(value);
   }
   params.push(vaultId, importId);
-  await db.exec(`UPDATE statement_imports SET ${sets.join(', ')} WHERE vault_id = ? AND id = ?`, params);
+  await db.exec(
+    `UPDATE statement_imports SET ${sets.join(', ')} WHERE vault_id = ? AND id = ?`,
+    params,
+  );
 }
 
-export async function getStatementImport(db: Db, vaultId: string, importId: string): Promise<StatementImport | null> {
+export async function getStatementImport(
+  db: Db,
+  vaultId: string,
+  importId: string,
+): Promise<StatementImport | null> {
   const row = await db.get<SqlRow>(
     'SELECT * FROM statement_imports WHERE vault_id = ? AND id = ? AND deleted_at IS NULL',
     [vaultId, importId],
@@ -575,7 +635,11 @@ function mapStatementImport(row: SqlRow): StatementImport {
 // Import rows
 // ---------------------------------------------------------------------------
 
-export async function insertImportRows(db: Db, vaultId: string, rows: ImportRowReview[]): Promise<void> {
+export async function insertImportRows(
+  db: Db,
+  vaultId: string,
+  rows: ImportRowReview[],
+): Promise<void> {
   for (const row of rows) {
     await db.exec(
       `INSERT INTO import_rows (id, import_id, vault_id, source_row_number, parsed_date, parsed_merchant, parsed_amount_minor, parsed_currency, suggested_category_id, category_source, category_confidence, row_status, diagnostics, duplicate_candidate_ids, user_decision)
@@ -601,7 +665,11 @@ export async function insertImportRows(db: Db, vaultId: string, rows: ImportRowR
   }
 }
 
-export async function listImportRows(db: Db, vaultId: string, importId: string): Promise<ImportRowReview[]> {
+export async function listImportRows(
+  db: Db,
+  vaultId: string,
+  importId: string,
+): Promise<ImportRowReview[]> {
   const rows = await db.all<SqlRow>(
     'SELECT * FROM import_rows WHERE vault_id = ? AND import_id = ? ORDER BY source_row_number ASC',
     [vaultId, importId],
@@ -637,7 +705,8 @@ function mapImportRow(row: SqlRow): ImportRowReview {
     parsed_currency: (row.parsed_currency as string | null) ?? null,
     suggested_category_id: (row.suggested_category_id as string | null) ?? null,
     category_source: (row.category_source as ImportRowReview['category_source'] | null) ?? null,
-    category_confidence: (row.category_confidence as ImportRowReview['category_confidence'] | null) ?? null,
+    category_confidence:
+      (row.category_confidence as ImportRowReview['category_confidence'] | null) ?? null,
     row_status: row.row_status as ImportRowReview['row_status'],
     diagnostics: JSON.parse(row.diagnostics as string) as RowDiagnostic[],
     duplicate_candidate_ids: JSON.parse(row.duplicate_candidate_ids as string) as string[],
@@ -679,7 +748,12 @@ export async function updateRule(
   db: Db,
   vaultId: string,
   ruleId: string,
-  patch: Partial<Pick<CategorizationRule, 'category_id' | 'matcher' | 'priority' | 'confidence' | 'evidence_count' | 'is_active'>> & { updated_at: string },
+  patch: Partial<
+    Pick<
+      CategorizationRule,
+      'category_id' | 'matcher' | 'priority' | 'confidence' | 'evidence_count' | 'is_active'
+    >
+  > & { updated_at: string },
 ): Promise<void> {
   const currentRule = await db.get<{ category_id: string }>(
     'SELECT category_id FROM categorization_rules WHERE vault_id = ? AND id = ?',
@@ -688,11 +762,19 @@ export async function updateRule(
   const targetCategoryId = patch.category_id ?? currentRule?.category_id;
   if (targetCategoryId && (patch.category_id !== undefined || patch.is_active === true)) {
     const category = await getCategory(db, vaultId, targetCategoryId);
-    if (!category || !category.is_active) throw new Error('Personal rules must target an active category.');
+    if (!category || !category.is_active)
+      throw new Error('Personal rules must target an active category.');
   }
   const sets = ['updated_at = ?', 'version = version + 1'];
   const params: unknown[] = [patch.updated_at];
-  for (const key of ['category_id', 'matcher', 'priority', 'confidence', 'evidence_count', 'is_active'] as const) {
+  for (const key of [
+    'category_id',
+    'matcher',
+    'priority',
+    'confidence',
+    'evidence_count',
+    'is_active',
+  ] as const) {
     const value = patch[key];
     if (value !== undefined) {
       sets.push(`${key} = ?`);
@@ -700,14 +782,24 @@ export async function updateRule(
     }
   }
   params.push(vaultId, ruleId);
-  await db.exec(`UPDATE categorization_rules SET ${sets.join(', ')} WHERE vault_id = ? AND id = ?`, params);
+  await db.exec(
+    `UPDATE categorization_rules SET ${sets.join(', ')} WHERE vault_id = ? AND id = ?`,
+    params,
+  );
 }
 
 export async function deleteRule(db: Db, vaultId: string, ruleId: string): Promise<void> {
-  await db.exec('DELETE FROM categorization_rules WHERE vault_id = ? AND id = ?', [vaultId, ruleId]);
+  await db.exec('DELETE FROM categorization_rules WHERE vault_id = ? AND id = ?', [
+    vaultId,
+    ruleId,
+  ]);
 }
 
-export async function listRules(db: Db, vaultId: string, activeOnly = true): Promise<CategorizationRule[]> {
+export async function listRules(
+  db: Db,
+  vaultId: string,
+  activeOnly = true,
+): Promise<CategorizationRule[]> {
   const sql = activeOnly
     ? 'SELECT * FROM categorization_rules WHERE vault_id = ? AND is_active = 1 ORDER BY priority DESC, evidence_count DESC'
     : 'SELECT * FROM categorization_rules WHERE vault_id = ? ORDER BY priority DESC';
@@ -725,7 +817,7 @@ function mapRule(row: SqlRow): CategorizationRule {
     priority: row.priority as number,
     confidence: row.confidence as number,
     evidence_count: row.evidence_count as number,
-    is_active: row.is_active === 1,
+    is_active: isSqliteBooleanTrue(row.is_active),
     created_from: row.created_from as CategorizationRule['created_from'],
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
@@ -758,11 +850,15 @@ export async function insertConflict(db: Db, conflict: ConflictRecord): Promise<
   );
 }
 
-export async function getConflict(db: Db, vaultId: string, conflictId: string): Promise<ConflictRecord | null> {
-  const row = await db.get<SqlRow>(
-    'SELECT * FROM conflicts WHERE vault_id = ? AND id = ?',
-    [vaultId, conflictId],
-  );
+export async function getConflict(
+  db: Db,
+  vaultId: string,
+  conflictId: string,
+): Promise<ConflictRecord | null> {
+  const row = await db.get<SqlRow>('SELECT * FROM conflicts WHERE vault_id = ? AND id = ?', [
+    vaultId,
+    conflictId,
+  ]);
   return row ? mapConflict(row) : null;
 }
 

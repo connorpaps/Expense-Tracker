@@ -17,7 +17,7 @@ import {
 import type { Category, Db, Transaction } from '@expense-tracker/domain';
 import { validateTransaction } from '@expense-tracker/domain';
 import { formatMinor } from '@expense-tracker/domain';
-import { encryptMutationPayload } from '../../local';
+import { encryptMutationPayload, mutationEnvelopeContext } from '../../local';
 
 interface TransactionsPageProps {
   db: Db;
@@ -46,7 +46,7 @@ function buildRange(start: string, end: string): { start: string; end: string } 
   return { start: start || '0000-01-01', end: end || '9999-12-31' };
 }
 
-export function TransactionsPage({ db, vaultId, defaultCurrency = 'USD' }: TransactionsPageProps) {
+export function TransactionsPage({ db, vaultId, defaultCurrency = 'CAD' }: TransactionsPageProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
@@ -63,7 +63,8 @@ export function TransactionsPage({ db, vaultId, defaultCurrency = 'USD' }: Trans
   const [error, setError] = useState<string | null>(null);
 
   const categoryName = useCallback(
-    (id: string | null) => categories.find((category) => category.id === id)?.name ?? 'Needs review',
+    (id: string | null) =>
+      categories.find((category) => category.id === id)?.name ?? 'Needs review',
     [categories],
   );
 
@@ -145,16 +146,81 @@ export function TransactionsPage({ db, vaultId, defaultCurrency = 'USD' }: Trans
         category_id: form.category_id,
         note: form.note.trim() || null,
       };
-      const ciphertext = await encryptMutationPayload(payload, `${vaultId}:transaction:${id}`);
+      const nextTransaction = editing
+        ? {
+            ...editing,
+            ...payload,
+            category_source: 'user' as const,
+            category_confidence: 'confirmed' as const,
+            review_state: 'confirmed' as const,
+            updated_at: now,
+            last_modified_by: 'web' as const,
+          }
+        : newTransaction({
+            id,
+            vault_id: vaultId,
+            ...payload,
+            merchant_original: null,
+            category_source: 'user',
+            category_confidence: 'confirmed',
+            source_type: 'manual',
+            review_state: 'confirmed',
+            now,
+            last_modified_by: 'web',
+          });
+      const mutationPayload = editing
+        ? {
+            entity: 'transaction',
+            value: {
+              id,
+              vault_id: vaultId,
+              occurred_on: payload.occurred_on,
+              merchant_display: payload.merchant_display,
+              amount_minor: payload.amount_minor,
+              category_id: payload.category_id,
+              category_source: 'user',
+              category_confidence: 'confirmed',
+              note: payload.note,
+              review_state: 'confirmed',
+              updated_at: now,
+            },
+          }
+        : { entity: 'transaction', value: nextTransaction };
+      const mutationChangedFields = editing
+        ? [
+            'occurred_on',
+            'merchant_display',
+            'amount_minor',
+            'category_id',
+            'category_source',
+            'category_confidence',
+            'note',
+            'review_state',
+          ]
+        : Object.keys(payload);
+      const mutationId = crypto.randomUUID();
+      const operation = editing ? ('update' as const) : ('create' as const);
+      const ciphertext = await encryptMutationPayload(
+        mutationPayload,
+        mutationEnvelopeContext({
+          mutation_id: mutationId,
+          vault_id: vaultId,
+          entity_type: 'transaction',
+          entity_id: id,
+          operation,
+          base_version: editing?.version ?? 0,
+          changed_fields: mutationChangedFields,
+        }),
+      );
       if (editing) {
         await persistTransactionMutation(db, {
-          mutationId: crypto.randomUUID(),
+          mutationId,
           vaultId,
           deviceId: 'web',
           entityId: id,
           operation: 'update',
           baseVersion: editing.version,
-          changedFields: Object.keys(payload),
+          changedFields: mutationChangedFields,
           ciphertext,
           origin: 'web',
           now,
@@ -189,25 +255,14 @@ export function TransactionsPage({ db, vaultId, defaultCurrency = 'USD' }: Trans
         });
         setNotice('Transaction updated locally.');
       } else {
-        const transaction = newTransaction({
-          id,
-          vault_id: vaultId,
-          ...payload,
-          merchant_original: null,
-          category_source: 'user',
-          category_confidence: 'confirmed',
-          source_type: 'manual',
-          review_state: 'confirmed',
-          now,
-          last_modified_by: 'web',
-        });
+        const transaction = nextTransaction;
         await persistTransactionMutation(db, {
-          mutationId: crypto.randomUUID(),
+          mutationId,
           vaultId,
           deviceId: 'web',
           entityId: id,
           operation: 'create',
-          changedFields: Object.keys(payload),
+          changedFields: mutationChangedFields,
           ciphertext,
           origin: 'web',
           now,
@@ -224,12 +279,32 @@ export function TransactionsPage({ db, vaultId, defaultCurrency = 'USD' }: Trans
   };
 
   const deleteTransaction = async (transaction: Transaction) => {
-    if (!window.confirm(`Delete ${transaction.merchant_display}? This removes it from active history.`)) return;
+    if (
+      !window.confirm(
+        `Delete ${transaction.merchant_display}? This removes it from active history.`,
+      )
+    )
+      return;
     try {
       const now = new Date().toISOString();
-      const ciphertext = await encryptMutationPayload({ deleted_at: now }, `${vaultId}:transaction:${transaction.id}`);
+      const mutationId = crypto.randomUUID();
+      const ciphertext = await encryptMutationPayload(
+        {
+          entity: 'transaction',
+          value: { id: transaction.id, vault_id: vaultId, deleted_at: now, updated_at: now },
+        },
+        mutationEnvelopeContext({
+          mutation_id: mutationId,
+          vault_id: vaultId,
+          entity_type: 'transaction',
+          entity_id: transaction.id,
+          operation: 'delete',
+          base_version: transaction.version,
+          changed_fields: ['deleted_at'],
+        }),
+      );
       await persistTransactionMutation(db, {
-        mutationId: crypto.randomUUID(),
+        mutationId,
         vaultId,
         deviceId: 'web',
         entityId: transaction.id,
@@ -239,7 +314,8 @@ export function TransactionsPage({ db, vaultId, defaultCurrency = 'USD' }: Trans
         ciphertext,
         origin: 'web',
         now,
-        apply: (transactionDb) => softDeleteTransaction(transactionDb, vaultId, transaction.id, now, 'web'),
+        apply: (transactionDb) =>
+          softDeleteTransaction(transactionDb, vaultId, transaction.id, now, 'web'),
       });
       setNotice('Transaction deleted locally.');
       await refresh();
@@ -250,68 +326,170 @@ export function TransactionsPage({ db, vaultId, defaultCurrency = 'USD' }: Trans
   };
 
   const hasFilters = Boolean(search || categoryId || startDate || endDate);
-  const activeCategoryCount = useMemo(() => categories.filter((category) => category.is_active).length, [categories]);
+  const activeCategoryCount = useMemo(
+    () => categories.filter((category) => category.is_active).length,
+    [categories],
+  );
 
   return (
     <section className="page" aria-labelledby="transactions-heading">
       <header className="page__header page__header--row">
         <div>
           <h1 id="transactions-heading">Transactions</h1>
-          <p className="page__subtitle">Your local history, ready to search, correct, and shape into a clearer picture.</p>
+          <p className="page__subtitle">
+            Your local history, ready to search, correct, and shape into a clearer picture.
+          </p>
         </div>
-        <button type="button" className="button button--primary" onClick={() => { setEditing(null); setRememberCategoryRule(false); setForm(emptyForm(categories.find((category) => category.is_active)?.id ?? '')); setIssues({}); setShowForm(true); }}>
+        <button
+          type="button"
+          className="button button--primary"
+          onClick={() => {
+            setEditing(null);
+            setRememberCategoryRule(false);
+            setForm(emptyForm(categories.find((category) => category.is_active)?.id ?? ''));
+            setIssues({});
+            setShowForm(true);
+          }}
+        >
           Add expense
         </button>
       </header>
 
-      {notice && <p className="notice notice--success" role="status">{notice}</p>}
-      {error && <p className="notice notice--error" role="alert">{error}</p>}
+      {notice && (
+        <p className="notice notice--success" role="status">
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      )}
 
       {showForm && (
-        <form className="panel transaction-form" onSubmit={(event) => void submit(event)} noValidate>
+        <form
+          className="panel transaction-form"
+          onSubmit={(event) => void submit(event)}
+          noValidate
+        >
           <div className="transaction-form__heading">
             <div>
               <p className="panel__eyebrow">{editing ? 'EDIT RECORD' : 'LOCAL ENTRY'}</p>
               <h2>{editing ? 'Edit transaction' : 'Add an expense'}</h2>
             </div>
-            <button type="button" className="button button--ghost" onClick={resetForm}>Cancel</button>
+            <button type="button" className="button button--ghost" onClick={resetForm}>
+              Cancel
+            </button>
           </div>
           <div className="form-grid">
             <label>
               Date
-              <input id="transaction-date" type="date" value={form.occurred_on} onChange={(event) => setForm({ ...form, occurred_on: event.target.value })} aria-label="Date" aria-invalid={Boolean(issues.occurred_on)} aria-describedby={issues.occurred_on ? 'transaction-date-error' : undefined} />
-              {issues.occurred_on && <span id="transaction-date-error" className="field-error">{issues.occurred_on}</span>}
+              <input
+                id="transaction-date"
+                type="date"
+                value={form.occurred_on}
+                onChange={(event) => setForm({ ...form, occurred_on: event.target.value })}
+                aria-label="Date"
+                aria-invalid={Boolean(issues.occurred_on)}
+                aria-describedby={issues.occurred_on ? 'transaction-date-error' : undefined}
+              />
+              {issues.occurred_on && (
+                <span id="transaction-date-error" className="field-error">
+                  {issues.occurred_on}
+                </span>
+              )}
             </label>
             <label>
               Merchant
-              <input id="transaction-merchant" value={form.merchant_display} onChange={(event) => setForm({ ...form, merchant_display: event.target.value })} placeholder="e.g. Corner cafe" aria-label="Merchant" aria-invalid={Boolean(issues.merchant_display)} aria-describedby={issues.merchant_display ? 'transaction-merchant-error' : undefined} />
-              {issues.merchant_display && <span id="transaction-merchant-error" className="field-error">{issues.merchant_display}</span>}
+              <input
+                id="transaction-merchant"
+                value={form.merchant_display}
+                onChange={(event) => setForm({ ...form, merchant_display: event.target.value })}
+                placeholder="e.g. Corner cafe"
+                aria-label="Merchant"
+                aria-invalid={Boolean(issues.merchant_display)}
+                aria-describedby={
+                  issues.merchant_display ? 'transaction-merchant-error' : undefined
+                }
+              />
+              {issues.merchant_display && (
+                <span id="transaction-merchant-error" className="field-error">
+                  {issues.merchant_display}
+                </span>
+              )}
             </label>
             <label>
               Amount
-              <input id="transaction-amount" inputMode="decimal" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} placeholder="-12.50 for spending" aria-label="Amount" aria-invalid={Boolean(issues.amount_minor)} aria-describedby={issues.amount_minor ? 'transaction-amount-error' : undefined} />
-              {issues.amount_minor && <span id="transaction-amount-error" className="field-error">{issues.amount_minor}</span>}
+              <input
+                id="transaction-amount"
+                inputMode="decimal"
+                value={form.amount}
+                onChange={(event) => setForm({ ...form, amount: event.target.value })}
+                placeholder="-12.50 for spending"
+                aria-label="Amount"
+                aria-invalid={Boolean(issues.amount_minor)}
+                aria-describedby={issues.amount_minor ? 'transaction-amount-error' : undefined}
+              />
+              {issues.amount_minor && (
+                <span id="transaction-amount-error" className="field-error">
+                  {issues.amount_minor}
+                </span>
+              )}
             </label>
             <label>
               Category
-              <select id="transaction-category" value={form.category_id} onChange={(event) => setForm({ ...form, category_id: event.target.value })} aria-label="Category" aria-invalid={Boolean(issues.category_id)} aria-describedby={issues.category_id ? 'transaction-category-error' : undefined}>
+              <select
+                id="transaction-category"
+                value={form.category_id}
+                onChange={(event) => setForm({ ...form, category_id: event.target.value })}
+                aria-label="Category"
+                aria-invalid={Boolean(issues.category_id)}
+                aria-describedby={issues.category_id ? 'transaction-category-error' : undefined}
+              >
                 <option value="">Choose a category</option>
-                {categories.filter((category) => category.is_active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                {categories
+                  .filter((category) => category.is_active)
+                  .map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
               </select>
-              {issues.category_id && <span id="transaction-category-error" className="field-error">{issues.category_id}</span>}
+              {issues.category_id && (
+                <span id="transaction-category-error" className="field-error">
+                  {issues.category_id}
+                </span>
+              )}
             </label>
-            {editing && <label className="form-grid__wide form-check">
-              <input type="checkbox" checked={rememberCategoryRule} onChange={(event) => setRememberCategoryRule(event.target.checked)} />
-              Remember this merchant’s category for future imports
-            </label>}
+            {editing && (
+              <label className="form-grid__wide form-check">
+                <input
+                  type="checkbox"
+                  checked={rememberCategoryRule}
+                  onChange={(event) => setRememberCategoryRule(event.target.checked)}
+                />
+                Remember this merchant’s category for future imports
+              </label>
+            )}
             <label className="form-grid__wide">
               Note <span className="label-hint">optional</span>
-              <textarea id="transaction-note" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} rows={3} placeholder="Anything useful to remember" aria-label="Note" />
+              <textarea
+                id="transaction-note"
+                value={form.note}
+                onChange={(event) => setForm({ ...form, note: event.target.value })}
+                rows={3}
+                placeholder="Anything useful to remember"
+                aria-label="Note"
+              />
             </label>
           </div>
           <div className="transaction-form__footer">
-            <span className="form-hint">{activeCategoryCount} active categories · saved only on this device</span>
-            <button type="submit" className="button button--primary">{editing ? 'Save changes' : 'Save expense'}</button>
+            <span className="form-hint">
+              {activeCategoryCount} active categories · saved only on this device
+            </span>
+            <button type="submit" className="button button--primary">
+              {editing ? 'Save changes' : 'Save expense'}
+            </button>
           </div>
         </form>
       )}
@@ -319,51 +497,121 @@ export function TransactionsPage({ db, vaultId, defaultCurrency = 'USD' }: Trans
       <div className="filter-bar" aria-label="Transaction filters">
         <label className="filter-bar__search">
           <span className="sr-only">Search transactions</span>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search merchant or note" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search merchant or note"
+          />
         </label>
         <label>
           <span className="sr-only">Filter by category</span>
           <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
             <option value="">All categories</option>
-            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
           </select>
         </label>
         <label>
           <span className="sr-only">Start date</span>
-          <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} aria-label="Start date" />
+          <input
+            type="date"
+            value={startDate}
+            onChange={(event) => setStartDate(event.target.value)}
+            aria-label="Start date"
+          />
         </label>
         <label>
           <span className="sr-only">End date</span>
-          <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} aria-label="End date" />
+          <input
+            type="date"
+            value={endDate}
+            onChange={(event) => setEndDate(event.target.value)}
+            aria-label="End date"
+          />
         </label>
-        <button type="button" className="button button--secondary" onClick={() => setSortNewest((value) => !value)}>{sortNewest ? 'Newest first' : 'Oldest first'}</button>
-        {hasFilters && <button type="button" className="button button--ghost" onClick={() => { setSearch(''); setCategoryId(''); setStartDate(''); setEndDate(''); }}>Reset</button>}
+        <button
+          type="button"
+          className="button button--secondary"
+          onClick={() => setSortNewest((value) => !value)}
+        >
+          {sortNewest ? 'Newest first' : 'Oldest first'}
+        </button>
+        {hasFilters && (
+          <button
+            type="button"
+            className="button button--ghost"
+            onClick={() => {
+              setSearch('');
+              setCategoryId('');
+              setStartDate('');
+              setEndDate('');
+            }}
+          >
+            Reset
+          </button>
+        )}
       </div>
 
       {transactions.length === 0 ? (
         <div className="panel panel--empty" role="status">
           <h2>{hasFilters ? 'No matching transactions' : 'Your history starts here'}</h2>
-          <p>{hasFilters ? 'Try a different filter or reset the current view.' : 'Add a cash purchase or import a statement. Every saved record stays on this device.'}</p>
-          {!hasFilters && <Link className="button button--secondary" to="/import">Import a statement</Link>}
+          <p>
+            {hasFilters
+              ? 'Try a different filter or reset the current view.'
+              : 'Add a cash purchase or import a statement. Every saved record stays on this device.'}
+          </p>
+          {!hasFilters && (
+            <Link className="button button--secondary" to="/import">
+              Import a statement
+            </Link>
+          )}
         </div>
       ) : (
         <div className="transaction-list" aria-live="polite">
-          <div className="transaction-list__summary">{transactions.length} record{transactions.length === 1 ? '' : 's'} shown</div>
+          <div className="transaction-list__summary">
+            {transactions.length} record{transactions.length === 1 ? '' : 's'} shown
+          </div>
           {transactions.map((transaction) => (
             <article className="transaction-row" key={transaction.id}>
               <div className="transaction-row__date">{transaction.occurred_on}</div>
               <div className="transaction-row__main">
                 <strong>{transaction.merchant_display}</strong>
-                <span>{categoryName(transaction.category_id)} · {transaction.source_type}</span>
-                {transaction.category_source && <small>{CATEGORY_SOURCE_LABELS[transaction.category_source]}{transaction.category_confidence ? ` · ${CATEGORY_CONFIDENCE_LABELS[transaction.category_confidence]}` : ''}</small>}
+                <span>
+                  {categoryName(transaction.category_id)} · {transaction.source_type}
+                </span>
+                {transaction.category_source && (
+                  <small>
+                    {CATEGORY_SOURCE_LABELS[transaction.category_source]}
+                    {transaction.category_confidence
+                      ? ` · ${CATEGORY_CONFIDENCE_LABELS[transaction.category_confidence]}`
+                      : ''}
+                  </small>
+                )}
                 {transaction.note && <small>{transaction.note}</small>}
               </div>
-              <div className={`transaction-row__amount${transaction.amount_minor > 0 ? ' transaction-row__amount--credit' : ''}`}>
+              <div
+                className={`transaction-row__amount${transaction.amount_minor > 0 ? ' transaction-row__amount--credit' : ''}`}
+              >
                 {formatMinor(transaction.amount_minor, transaction.currency)}
               </div>
               <div className="transaction-row__actions">
-                <button type="button" className="button button--ghost" onClick={() => beginEdit(transaction)}>Edit</button>
-                <button type="button" className="button button--ghost button--danger" onClick={() => void deleteTransaction(transaction)}>Delete</button>
+                <button
+                  type="button"
+                  className="button button--ghost"
+                  onClick={() => beginEdit(transaction)}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="button button--ghost button--danger"
+                  onClick={() => void deleteTransaction(transaction)}
+                >
+                  Delete
+                </button>
               </div>
             </article>
           ))}

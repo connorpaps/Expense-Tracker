@@ -14,7 +14,7 @@ struct SettingsView: View {
     @State private var showBackupPassword = false
     @State private var showClearConfirmation = false
 
-    private let categories = ["Food and Dining", "Transportation", "Shopping", "Bills and Utilities", "Entertainment", "Health", "Travel", "Income", "Transfers", "Other"]
+    private let categories = ["Food and Dining", "Transportation", "Shopping", "Bills and Utilities", "Entertainment", "Subscriptions", "Health", "Travel", "Income", "Transfers", "Other"]
 
     var body: some View {
         Form {

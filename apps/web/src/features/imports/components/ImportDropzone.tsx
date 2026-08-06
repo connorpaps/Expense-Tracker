@@ -45,7 +45,7 @@ export function ImportDropzone({ onFile, disabled }: ImportDropzoneProps) {
       />
       <div className="dropzone__inner">
         <p className="dropzone__title">Import a statement</p>
-        <p className="dropzone__hint">CSV or text-based PDF from American Express, Apple Card, Chase, Capital One, or US Bank.</p>
+        <p className="dropzone__hint">CSV or text-based PDF statement. Choose a file to preview it before anything is saved.</p>
         <button
           type="button"
           className="button button--secondary"

@@ -31,31 +31,31 @@ async function loadOrCreateKey(epoch: number): Promise<CryptoKey> {
   // contract tests and ephemeral private browsing usable without pretending
   // that this fallback is durable; production browsers use the branch below.
   if (typeof indexedDB === 'undefined') {
-    return crypto.subtle.generateKey(
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt'],
-    ) as Promise<CryptoKey>;
+    return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+      'encrypt',
+    ]) as Promise<CryptoKey>;
   }
 
   const db = await openKeyDb();
   try {
-    const existing = await requestResult<CryptoKey | undefined>(db.transaction(KEY_STORE, 'readonly').objectStore(KEY_STORE).get(KEY_NAME));
+    const existing = await requestResult<CryptoKey | undefined>(
+      db.transaction(KEY_STORE, 'readonly').objectStore(KEY_STORE).get(KEY_NAME),
+    );
     if (epoch !== keyEpoch) return loadOrCreateKey(keyEpoch);
     if (existing) return existing;
 
-    const created = await crypto.subtle.generateKey(
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt'],
-    );
+    const created = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+      'encrypt',
+    ]);
     if (epoch !== keyEpoch) return loadOrCreateKey(keyEpoch);
     const transaction = db.transaction(KEY_STORE, 'readwrite');
     transaction.objectStore(KEY_STORE).put(created, KEY_NAME);
     await new Promise<void>((resolve, reject) => {
       transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error ?? new Error('Browser key storage failed.'));
-      transaction.onabort = () => reject(transaction.error ?? new Error('Browser key storage was aborted.'));
+      transaction.onerror = () =>
+        reject(transaction.error ?? new Error('Browser key storage failed.'));
+      transaction.onabort = () =>
+        reject(transaction.error ?? new Error('Browser key storage was aborted.'));
     });
     return created;
   } finally {
@@ -86,8 +86,10 @@ export async function clearMutationKeyStorage(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const request = indexedDB.deleteDatabase(KEY_DB);
     request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error ?? new Error('Could not clear browser encryption keys.'));
-    request.onblocked = () => reject(new Error('Close other tabs before clearing browser encryption keys.'));
+    request.onerror = () =>
+      reject(request.error ?? new Error('Could not clear browser encryption keys.'));
+    request.onblocked = () =>
+      reject(new Error('Close other tabs before clearing browser encryption keys.'));
   });
 }
 
@@ -103,9 +105,16 @@ function toBase64Url(bytes: Uint8Array): string {
  * handling is intentionally owned by the privacy milestone.
  */
 async function deriveExportKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
-  const material = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']);
+  const material = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, [
+    'deriveKey',
+  ]);
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: salt as unknown as BufferSource, iterations: EXPORT_KDF.iterations, hash: 'SHA-256' },
+    {
+      name: 'PBKDF2',
+      salt: salt as unknown as BufferSource,
+      iterations: EXPORT_KDF.iterations,
+      hash: 'SHA-256',
+    },
     material,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -127,16 +136,27 @@ export async function encryptExportPayload(plaintext: string, password: string):
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveExportKey(password, salt);
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv as unknown as BufferSource }, key, encoder.encode(plaintext)));
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: iv as unknown as BufferSource },
+      key,
+      encoder.encode(plaintext),
+    ),
+  );
   return `v1.${toBase64(salt)}.${toBase64(iv)}.${toBase64(ciphertext)}`;
 }
 
 export async function decryptExportPayload(payload: string, password: string): Promise<string> {
   const [version, encodedSalt, encodedIv, encodedCiphertext] = payload.split('.');
-  if (version !== 'v1' || !encodedSalt || !encodedIv || !encodedCiphertext) throw new Error('Unsupported encrypted backup format.');
+  if (version !== 'v1' || !encodedSalt || !encodedIv || !encodedCiphertext)
+    throw new Error('Unsupported encrypted backup format.');
   const key = await deriveExportKey(password, fromBase64(encodedSalt));
   try {
-    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromBase64(encodedIv) as unknown as BufferSource }, key, fromBase64(encodedCiphertext) as unknown as BufferSource);
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: fromBase64(encodedIv) as unknown as BufferSource },
+      key,
+      fromBase64(encodedCiphertext) as unknown as BufferSource,
+    );
     return new TextDecoder().decode(decrypted);
   } catch {
     throw new Error('The export password is incorrect or the backup is damaged.');
@@ -148,6 +168,52 @@ export async function encryptMutationPayload(payload: unknown, context: string):
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const aad = encoder.encode(context);
   const plaintext = encoder.encode(JSON.stringify(payload));
-  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv as unknown as BufferSource, additionalData: aad as unknown as BufferSource }, key, plaintext as unknown as BufferSource));
+  const encrypted = new Uint8Array(
+    await crypto.subtle.encrypt(
+      {
+        name: 'AES-GCM',
+        iv: iv as unknown as BufferSource,
+        additionalData: aad as unknown as BufferSource,
+      },
+      key,
+      plaintext as unknown as BufferSource,
+    ),
+  );
   return `v1.${toBase64Url(iv)}.${toBase64Url(encrypted)}.${toBase64Url(aad)}`;
+}
+
+/** Decode an envelope created by this browser's local mutation key. This is
+ * intentionally same-browser/local-relay support; paired-device key delivery
+ * remains a separate authenticated platform boundary. */
+export async function decryptMutationPayload(
+  ciphertext: string,
+  context: string,
+): Promise<unknown> {
+  const [version, encodedIv, encodedCiphertext, encodedAad] = ciphertext.split('.');
+  if (version !== 'v1' || !encodedIv || !encodedCiphertext || !encodedAad)
+    throw new Error('Unsupported mutation envelope format.');
+  const aad = fromBase64Url(encodedAad);
+  const expectedAad = encoder.encode(context);
+  if (toBase64Url(aad) !== toBase64Url(expectedAad))
+    throw new Error('Mutation envelope context does not match.');
+  try {
+    const plaintext = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: fromBase64Url(encodedIv) as unknown as BufferSource,
+        additionalData: aad as unknown as BufferSource,
+      },
+      await getSessionKey(),
+      fromBase64Url(encodedCiphertext) as unknown as BufferSource,
+    );
+    return JSON.parse(new TextDecoder().decode(plaintext)) as unknown;
+  } catch {
+    throw new Error('Mutation envelope could not be decrypted by this browser.');
+  }
+}
+
+function fromBase64Url(value: string): Uint8Array {
+  const padded =
+    value.replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - (value.length % 4)) % 4);
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
 }

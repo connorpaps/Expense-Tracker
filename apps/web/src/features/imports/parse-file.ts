@@ -6,18 +6,22 @@ export interface ParseOutcome {
   statement: ParsedStatement;
 }
 
-export type ParseFileFn = (file: File, onProgress: (p: ParseProgress) => void) => Promise<ParseOutcome>;
+export type ParseFileFn = (
+  file: File,
+  onProgress: (p: ParseProgress) => void,
+  currency?: string,
+) => Promise<ParseOutcome>;
 
 const WORKER_FALLBACK_TIMEOUT_MS = 10_000;
 
 /** Default parse implementation: off-main-thread via the parser worker. */
-export const parseFileInWorker: ParseFileFn = (file, onProgress) => {
+export const parseFileInWorker: ParseFileFn = (file, onProgress, currency) => {
   // PDF.js is already asynchronous, but its worker bootstrap can fail in
   // browsers that cannot resolve the PDF.js worker/module graph. Keep PDF
   // parsing in-process so parser-specific errors reach the UI reliably;
   // CSV parsing remains worker-backed below.
   if (file.name.toLowerCase().endsWith('.pdf')) {
-    return parseFileInProcess(file, onProgress);
+    return parseFileInProcess(file, onProgress, currency);
   }
 
   return new Promise<ParseOutcome>((resolve, reject) => {
@@ -46,7 +50,7 @@ export const parseFileInWorker: ParseFileFn = (file, onProgress) => {
       // or it can hang while loading a module. Retry locally so the parser's
       // specific code is preserved instead of reducing the failure to a
       // generic IMPORT_PARSE_FAILED message.
-      void parseFileInProcess(file, onProgress)
+      void parseFileInProcess(file, onProgress, currency)
         .then((outcome) => finish(() => resolve(outcome)))
         .catch((error) => finish(() => reject(error)));
     };
@@ -84,6 +88,7 @@ export const parseFileInWorker: ParseFileFn = (file, onProgress) => {
     const request: ParseRequest = {
       fileType: file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'csv',
       fileName: file.name,
+      currency,
     };
     const readAndPost = async () => {
       try {
@@ -133,15 +138,21 @@ export function readFileBytes(file: ReadableFile): Promise<ArrayBuffer> {
 export async function parseFileInProcess(
   file: ReadableFile,
   onProgress: (p: ParseProgress) => void,
+  currency?: string,
 ): Promise<ParseOutcome> {
   const { parseCsv, parsePdf } = await import('@expense-tracker/parsing');
   if (file.name.toLowerCase().endsWith('.pdf')) {
     const statement = await parsePdf(await readFileBytes(file), {
       fileName: file.name,
       onProgress,
+      currency,
     });
     return { statement };
   }
-  const statement = parseCsv(await readFileText(file), { fileName: file.name, onProgress });
+  const statement = parseCsv(await readFileText(file), {
+    fileName: file.name,
+    onProgress,
+    currency,
+  });
   return { statement };
 }

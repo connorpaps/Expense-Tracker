@@ -1,7 +1,7 @@
 import type { CategorySource, CategoryConfidence, CategoryExplanation } from '@expense-tracker/contracts';
 import type { Category } from '../entities/category';
 import type { CategorizationRule } from '../entities/rules';
-import { FALLBACK_CATEGORY_NAME, matchDefaultRules } from './default-rules';
+import { matchDefaultRules } from './default-rules';
 import { normalizeMerchant } from './normalize';
 
 export interface Suggestion {
@@ -16,6 +16,7 @@ export interface Suggestion {
 export interface SuggestionContext {
   categories: Category[];
   personalRules: CategorizationRule[];
+  amountMinor?: number | null;
 }
 
 function confidenceForRule(rule: CategorizationRule): CategoryConfidence {
@@ -46,7 +47,7 @@ export function suggestCategory(merchant: string, context: SuggestionContext): S
   const winner = matchingRules[0];
   const tied = winner ? matchingRules.filter((candidate) => candidate.specificity === winner.specificity && candidate.rule.priority === winner.rule.priority && candidate.rule.category_id !== winner.rule.category_id) : [];
   if (winner && tied.length > 0) {
-    return unresolvedSuggestion(activeCategories.get(FALLBACK_CATEGORY_NAME)?.id ?? null, {
+    return unresolvedSuggestion(null, {
       source: 'manual_required',
       confidence: 'unresolved',
       matchedRuleId: null,
@@ -73,7 +74,7 @@ export function suggestCategory(merchant: string, context: SuggestionContext): S
     };
   }
 
-  const match = matchDefaultRules(merchant);
+  const match = matchDefaultRules(merchant, { amountMinor: context.amountMinor });
   if (match) {
     const category = [...activeCategories.values()].find((candidate) => candidate.name === match.categoryName);
     if (category) {
@@ -82,12 +83,12 @@ export function suggestCategory(merchant: string, context: SuggestionContext): S
         categoryId: category.id,
         source: 'default_rule',
         confidence,
-        matchedRuleId: null,
+        matchedRuleId: match.ruleId,
         matchedPattern: match.matchedKeyword,
         explanation: {
           source: 'default_rule',
           confidence,
-          matchedRuleId: null,
+          matchedRuleId: match.ruleId,
           matchedPattern: match.matchedKeyword,
           detail: `Matched the default pattern “${match.matchedKeyword}”.`,
         },
@@ -95,7 +96,7 @@ export function suggestCategory(merchant: string, context: SuggestionContext): S
     }
   }
 
-  return unresolvedSuggestion(activeCategories.get(FALLBACK_CATEGORY_NAME)?.id ?? null, {
+  return unresolvedSuggestion(null, {
     source: 'manual_required',
     confidence: 'unresolved',
     matchedRuleId: null,

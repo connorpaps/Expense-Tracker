@@ -56,7 +56,6 @@ export type AppliedResult =
   | { kind: 'duplicate'; mutation: MutationLogRow | null }
   | { kind: 'conflict'; mutation: MutationLogRow; conflictId: string };
 
-
 /**
  * Append a mutation to the durable log. Duplicate mutation_ids are rejected as
  * no-ops (idempotency index).
@@ -93,7 +92,11 @@ export async function appendMutation(db: Db, input: AppendMutationInput): Promis
   return (await findMutation(db, input.vaultId, input.mutationId)) as MutationLogRow;
 }
 
-export async function findMutation(db: Db, vaultId: string, mutationId: string): Promise<MutationLogRow | null> {
+export async function findMutation(
+  db: Db,
+  vaultId: string,
+  mutationId: string,
+): Promise<MutationLogRow | null> {
   const row = await db.get<SqlRow>('SELECT * FROM mutation_log WHERE vault_id = ? AND id = ?', [
     vaultId,
     mutationId,
@@ -116,7 +119,8 @@ export async function persistMutation(db: Db, input: LocalMutationInput): Promis
   await db.transaction(async (transactionDb) => {
     const existing = await findMutation(transactionDb, input.vaultId, input.mutationId);
     if (existing) return;
-    const clock = input.clock ?? await nextMutationClock(transactionDb, input.vaultId, input.deviceId);
+    const clock =
+      input.clock ?? (await nextMutationClock(transactionDb, input.vaultId, input.deviceId));
     await appendMutation(transactionDb, { ...input, clock });
     await input.apply(transactionDb);
   });
@@ -135,18 +139,31 @@ export async function applyMutationOnce(
   mutation: AppendMutationInput,
   applyProjection?: (db: Db) => Promise<void>,
 ): Promise<AppliedResult> {
-  if (mutation.vaultId !== vaultId) throw new Error('Remote mutation envelope targets the wrong vault.');
+  if (mutation.vaultId !== vaultId)
+    throw new Error('Remote mutation envelope targets the wrong vault.');
   return db.transaction(async (transactionDb) => {
     const existing = await findMutation(transactionDb, vaultId, mutation.mutationId);
     if (existing) {
       if (!sameMutationEnvelope(existing, mutation)) {
         throw new Error('A duplicate mutation id carried different envelope contents.');
       }
+      if (existing.status === 'failed' && applyProjection) {
+        await applyProjection(transactionDb);
+        await markApplied(transactionDb, vaultId, mutation.mutationId, mutation.now);
+        return {
+          kind: 'applied',
+          mutation: { ...existing, status: 'applied', applied_at: mutation.now },
+        };
+      }
       return { kind: 'duplicate', mutation: existing };
     }
 
     const previous = await latestMutationForEntity(transactionDb, vaultId, mutation.entityId);
-    if (previous && clocksAreConcurrent(previous.clock, mutation.clock) && fieldsOverlap(previous, mutation)) {
+    if (
+      previous &&
+      clocksAreConcurrent(previous.clock, mutation.clock) &&
+      fieldsOverlap(previous, mutation)
+    ) {
       const conflictId = `conflict-${mutation.mutationId}`;
       const conflictingFields = overlappingFields(previous, mutation);
       await transactionDb.exec(
@@ -182,7 +199,12 @@ function fieldsOverlap(previous: MutationLogRow, next: AppendMutationInput): boo
 
 function overlappingFields(previous: MutationLogRow, next: AppendMutationInput): string[] {
   if (previous.entity_id !== next.entityId) return [];
-  if (previous.operation === 'delete' || next.operation === 'delete' || previous.operation === 'create' || next.operation === 'create') {
+  if (
+    previous.operation === 'delete' ||
+    next.operation === 'delete' ||
+    previous.operation === 'create' ||
+    next.operation === 'create'
+  ) {
     return [...new Set([...previous.changed_fields, ...next.changedFields])];
   }
   const prevFields = previous.changed_fields;
@@ -240,7 +262,12 @@ async function latestMutationForEntity(
   return row ? mapRow(row) : null;
 }
 
-export async function markApplied(db: Db, vaultId: string, mutationId: string, at: string): Promise<void> {
+export async function markApplied(
+  db: Db,
+  vaultId: string,
+  mutationId: string,
+  at: string,
+): Promise<void> {
   await db.exec(
     "UPDATE mutation_log SET status = 'applied', applied_at = ? WHERE vault_id = ? AND id = ?",
     [at, vaultId, mutationId],
@@ -256,6 +283,27 @@ export async function markFailed(
   await db.exec(
     "UPDATE mutation_log SET status = 'failed', retry_count = retry_count + 1, last_error_code = ? WHERE vault_id = ? AND id = ?",
     [errorCode, vaultId, mutationId],
+  );
+}
+
+/** Mark a mutation as intentionally local-only without counting a retry attempt. */
+export async function markLocalOnly(
+  db: Db,
+  vaultId: string,
+  mutationId: string,
+  reason: string,
+): Promise<void> {
+  await db.exec(
+    "UPDATE mutation_log SET status = 'local_only', last_error_code = ? WHERE vault_id = ? AND id = ?",
+    [reason, vaultId, mutationId],
+  );
+}
+
+/** Mark opaque relay receipt separately from local projection application. */
+export async function markExchanged(db: Db, vaultId: string, mutationId: string): Promise<void> {
+  await db.exec(
+    "UPDATE mutation_log SET status = 'exchanged', applied_at = NULL WHERE vault_id = ? AND id = ?",
+    [vaultId, mutationId],
   );
 }
 
@@ -283,7 +331,11 @@ function isNewerThan(mutation: MutationLogRow, knownClock: KnownClock): boolean 
   return mutation.clock.lamport > known;
 }
 
-export async function nextMutationClock(db: Db, vaultId: string, deviceId: string): Promise<MutationClock> {
+export async function nextMutationClock(
+  db: Db,
+  vaultId: string,
+  deviceId: string,
+): Promise<MutationClock> {
   const row = await db.get<{ lamport: number }>(
     'SELECT MAX(lamport_clock) AS lamport FROM mutation_log WHERE vault_id = ? AND device_id = ?',
     [vaultId, deviceId],
@@ -300,10 +352,19 @@ export async function pendingMutationCount(db: Db, vaultId: string): Promise<num
   return row?.n ?? 0;
 }
 
+/** Return the durable local queue in creation order for an explicit exchange. */
+export async function listPendingMutations(db: Db, vaultId: string): Promise<MutationLogRow[]> {
+  const rows = await db.all<SqlRow>(
+    "SELECT * FROM mutation_log WHERE vault_id = ? AND origin <> 'relay' AND status IN ('pending', 'failed', 'disconnected') ORDER BY created_at ASC",
+    [vaultId],
+  );
+  return rows.map(mapRow);
+}
+
 /** Local failed records waiting for a future connected transport retry. */
 export async function listFailedMutations(db: Db, vaultId: string): Promise<MutationLogRow[]> {
   const rows = await db.all<SqlRow>(
-    "SELECT * FROM mutation_log WHERE vault_id = ? AND status = 'failed' ORDER BY created_at ASC",
+    "SELECT * FROM mutation_log WHERE vault_id = ? AND status IN ('failed', 'local_only') ORDER BY created_at ASC",
     [vaultId],
   );
   return rows.map(mapRow);
@@ -328,7 +389,11 @@ export async function computeCheckpoint(db: Db, vaultId: string): Promise<KnownC
  * checkpoint or the user creates a new export backup. This phase only
  * implements the predicate; the physical cleanup is a US6 concern.
  */
-export async function canCompact(db: Db, vaultId: string, acknowledgedBy: string[]): Promise<boolean> {
+export async function canCompact(
+  db: Db,
+  vaultId: string,
+  acknowledgedBy: string[],
+): Promise<boolean> {
   const checkpoint = await computeCheckpoint(db, vaultId);
   const acknowledged = new Set(acknowledgedBy);
   for (const device of Object.keys(checkpoint)) {
@@ -353,17 +418,19 @@ export function mergeIntoCheckpoint(local: MutationClock, checkpoint: KnownClock
 export { clockHappenedBefore, clocksAreConcurrent };
 
 function sameMutationEnvelope(existing: MutationLogRow, incoming: AppendMutationInput): boolean {
-  return existing.vault_id === incoming.vaultId
-    && existing.entity_type === incoming.entityType
-    && existing.entity_id === incoming.entityId
-    && existing.operation === incoming.operation
-    && existing.base_version === incoming.baseVersion
-    && existing.device_id === incoming.deviceId
-    && existing.clock.lamport === incoming.clock.lamport
-    && serializeVector(existing.clock.vector) === serializeVector(incoming.clock.vector)
-    && JSON.stringify([...existing.changed_fields].sort()) === JSON.stringify([...incoming.changedFields].sort())
-    && existing.ciphertext === incoming.ciphertext
-    && existing.origin === incoming.origin;
+  return (
+    existing.vault_id === incoming.vaultId &&
+    existing.entity_type === incoming.entityType &&
+    existing.entity_id === incoming.entityId &&
+    existing.operation === incoming.operation &&
+    existing.base_version === incoming.baseVersion &&
+    existing.device_id === incoming.deviceId &&
+    existing.clock.lamport === incoming.clock.lamport &&
+    serializeVector(existing.clock.vector) === serializeVector(incoming.clock.vector) &&
+    JSON.stringify([...existing.changed_fields].sort()) ===
+      JSON.stringify([...incoming.changedFields].sort()) &&
+    existing.ciphertext === incoming.ciphertext
+  );
 }
 
 function mapRow(row: SqlRow): MutationLogRow {
