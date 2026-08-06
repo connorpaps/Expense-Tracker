@@ -1042,3 +1042,20 @@ Raw per-save events, if the optional watcher is running, go to `docs/activity-wa
   - packages/fixtures/demo/demo-data.json
   - scripts/audit-browser.mjs
   - specs/001-local-expense-tracker/quickstart.md
+
+## 2026-08-06 19:31 — `f6275a8`
+**chore: checkpoint before catalog instrument revamp**
+
+  - DESIGN.md
+  - PRODUCT.md
+  - apps/web/.impeccable/surfaces/apps-web-src-app-tsx.md
+  - apps/web/index.html
+  - apps/web/public/fonts/Fraunces-Variable.ttf
+  - apps/web/public/fonts/OFL.txt
+  - apps/web/src/App.tsx
+  - apps/web/src/features/dashboard/DashboardPage.tsx
+  - apps/web/src/features/settings/SettingsPage.tsx
+  - apps/web/src/features/sync/SyncPage.tsx
+  - apps/web/src/features/transactions/TransactionsPage.tsx
+  - apps/web/src/styles/global.css
+  - apps/web/src/styles/tokens.css
