@@ -27,7 +27,7 @@ struct RootView: View {
             .tag(0)
 
             NavigationStack {
-                TransactionsView(store: store)
+                TransactionsView(store: store, pendingQueue: pendingQueue)
             }
             .tabItem {
                 Label("Transactions", systemImage: "list.bullet.rectangle")
@@ -43,7 +43,7 @@ struct RootView: View {
             .tag(2)
 
             NavigationStack {
-                SettingsView(pendingQueue: pendingQueue)
+                SettingsView(store: store, pendingQueue: pendingQueue)
             }
             .tabItem {
                 Label("Settings", systemImage: "gearshape")

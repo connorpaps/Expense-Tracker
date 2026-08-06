@@ -8,13 +8,13 @@
 import { describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import type { RelayMessage, VectorClock } from '@expense-tracker/contracts';
-import { createRelayServer } from '../src/relay-server';
+import { createRelayServer, OpaqueEnvelopeStore } from '../src/relay-server';
 import { DeterministicLamportClock, tickVectorClock, mergeVectorClocks, clockAsserter } from './support/deterministic-clock';
 import { TestEnvelopeCipher, TestDeviceKeyWrapper, buildMutationEnvelope, splitEnvelopeCiphertext, toBase64Url } from './support/envelope-helpers';
 import { InMemoryRelayTransport, assertExactlyOnce } from './support/local-transport';
 
 async function startRelay() {
-  const handle = createRelayServer({ host: '127.0.0.1', port: 0 });
+  const handle = createRelayServer({ host: '127.0.0.1', port: 0, secureMode: false, insecureTestMode: true });
   await new Promise<void>((resolve) => handle.server.listen(0, '127.0.0.1', resolve));
   const address = handle.server.address();
   const port = typeof address === 'object' && address ? address.port : 0;
@@ -62,6 +62,53 @@ describe('relay server (T003)', () => {
     }
   });
 
+  it('stores uploaded opaque mutations and returns only mutations beyond the known clock', async () => {
+    const { handle, port } = await startRelay();
+    const socket = await connect(port);
+    try {
+      const makeMutation = (id: string, deviceId: string, lamport: number, vaultId = 'vault-1') => ({
+        mutation_id: id,
+        vault_id: vaultId,
+        device_id: deviceId,
+        clock: { lamport, vector: { [deviceId]: lamport } },
+        entity_type: 'transaction' as const,
+        entity_id: id,
+        operation: 'create' as const,
+        base_version: 0,
+        changed_fields: ['amount_minor'],
+        ciphertext: `opaque-${id}`,
+      });
+      const request: RelayMessage = {
+        type: 'sync_exchange_request',
+        request: {
+          vault_id: 'vault-1',
+          device_id: 'phone',
+          known_clock: { web: 1 },
+          requested_limit: 1,
+          mutations: [makeMutation('m-1', 'web', 1), makeMutation('m-2', 'web', 2), makeMutation('m-3', 'web', 3), makeMutation('wrong-vault', 'web', 4, 'vault-2')],
+          batch_id: 'batch-upload-1',
+          oldest_pending_mutation_id: 'm-1',
+        },
+      };
+      const reply = nextMessage(socket);
+      socket.send(JSON.stringify(request));
+      const message = await reply;
+      expect(message.type).toBe('sync_exchange_response');
+      if (message.type === 'sync_exchange_response') {
+        expect(message.response.mutations.map((mutation) => mutation.mutation_id)).toEqual(['m-2']);
+        expect(message.response.has_more).toBe(true);
+        expect(message.response.checkpoint).toEqual({ web: 2 });
+        expect(message.response.replay).toBe(false);
+        expect(message.response.conflicting_mutation_ids).toEqual([]);
+      }
+      expect(handle.store.mutationCount('vault-1')).toBe(3);
+      expect(handle.store.mutationCount('vault-2')).toBe(0);
+    } finally {
+      socket.close();
+      await handle.close();
+    }
+  });
+
   it('detects retried exchange batches as replays (idempotent acks)', async () => {
     const { handle, port } = await startRelay();
     const socket = await connect(port);
@@ -73,6 +120,7 @@ describe('relay server (T003)', () => {
           device_id: 'phone',
           known_clock: {},
           requested_limit: 100,
+          mutations: [],
           batch_id: 'batch-42',
           oldest_pending_mutation_id: null,
         },
@@ -80,19 +128,163 @@ describe('relay server (T003)', () => {
       const first = nextMessage(socket);
       socket.send(JSON.stringify(request));
       const firstAck = await first;
-      expect(firstAck.type).toBe('relay_ack');
+      expect(firstAck.type).toBe('sync_exchange_response');
 
       const second = nextMessage(socket);
-      socket.send(JSON.stringify(request));
+      socket.send(JSON.stringify({
+        ...request,
+        request: {
+          ...request.request,
+          known_clock: { web: 99 },
+          mutations: [
+            {
+              mutation_id: 'late-mutation',
+              vault_id: 'vault-1',
+              device_id: 'phone',
+              clock: { lamport: 1, vector: { phone: 1 } },
+              entity_type: 'transaction',
+              entity_id: 'late-mutation',
+              operation: 'create',
+              base_version: 0,
+              changed_fields: [],
+              ciphertext: 'must-not-append',
+            },
+          ],
+        },
+      }));
       const secondAck = await second;
-      expect(secondAck.type).toBe('relay_ack');
-      expect(secondAck).toMatchObject({ envelope_id: 'batch-42', replay: true });
+      expect(secondAck.type).toBe('sync_exchange_response');
+      if (secondAck.type === 'sync_exchange_response') {
+        expect(secondAck.response.replay).toBe(true);
+        expect(secondAck.response.mutations).toEqual([]);
+        expect(secondAck.response.checkpoint).toEqual(firstAck.type === 'sync_exchange_response' ? firstAck.response.checkpoint : {});
+      }
+      expect(handle.store.mutationCount('vault-1')).toBe(0);
       expect(handle.store.isReplay('vault-1:phone:batch-42')).toBe(true);
       expect(handle.store.size()).toBe(1);
     } finally {
       socket.close();
       await handle.close();
     }
+  });
+
+  it('treats reordered equivalent envelope fields as a duplicate', () => {
+    const store = new OpaqueEnvelopeStore(10);
+    const mutation = {
+      mutation_id: 'm-equivalent',
+      vault_id: 'vault-1',
+      device_id: 'web',
+      clock: { lamport: 1, vector: { web: 1, ios: 0 } },
+      entity_type: 'transaction' as const,
+      entity_id: 'tx-1',
+      operation: 'create' as const,
+      base_version: 0,
+      changed_fields: ['amount_minor', 'merchant_display'],
+      ciphertext: 'opaque-a',
+    };
+    expect(store.appendMutation(mutation)).toBe('inserted');
+    const reordered = {
+      ciphertext: mutation.ciphertext,
+      changed_fields: ['merchant_display', 'amount_minor'],
+      operation: mutation.operation,
+      base_version: mutation.base_version,
+      entity_id: mutation.entity_id,
+      entity_type: mutation.entity_type,
+      clock: { lamport: 1, vector: { ios: 0, web: 1 } },
+      device_id: mutation.device_id,
+      vault_id: mutation.vault_id,
+      mutation_id: mutation.mutation_id,
+    };
+    expect(store.appendMutation(reordered)).toBe('duplicate');
+  });
+
+  it('reports conflicting duplicate IDs and retains the original envelope', () => {
+    const store = new OpaqueEnvelopeStore(10);
+    const mutation = {
+      mutation_id: 'm-conflict',
+      vault_id: 'vault-1',
+      device_id: 'web',
+      clock: { lamport: 1, vector: { web: 1 } },
+      entity_type: 'transaction' as const,
+      entity_id: 'tx-1',
+      operation: 'create' as const,
+      base_version: 0,
+      changed_fields: ['amount_minor'],
+      ciphertext: 'opaque-a',
+    };
+    expect(store.appendMutation(mutation)).toBe('inserted');
+    expect(store.appendMutation({ ...mutation, ciphertext: 'opaque-b' })).toBe('conflict');
+    expect(store.mutationCount('vault-1')).toBe(1);
+    const response = store.exchange('vault-1', {}, 10, false, ['m-conflict']);
+    expect(response.mutations[0]?.ciphertext).toBe('opaque-a');
+    expect(response.conflicting_mutation_ids).toEqual(['m-conflict']);
+    expect(response.rejected_mutation_ids).toEqual([]);
+  });
+
+  it('caps oversized upload and response requests at defensive relay limits', async () => {
+    const { handle, port } = await startRelay();
+    const socket = await connect(port);
+    try {
+      const mutations = Array.from({ length: 1_005 }, (_, index) => ({
+        mutation_id: `large-${index}`,
+        vault_id: 'vault-large',
+        device_id: 'web',
+        clock: { lamport: index + 1, vector: { web: index + 1 } },
+        entity_type: 'transaction' as const,
+        entity_id: `tx-${index}`,
+        operation: 'create' as const,
+        base_version: 0,
+        changed_fields: [],
+        ciphertext: `opaque-${index}`,
+      }));
+      const reply = nextMessage(socket);
+      socket.send(JSON.stringify({
+        type: 'sync_exchange_request',
+        request: {
+          vault_id: 'vault-large',
+          device_id: 'phone',
+          known_clock: {},
+          requested_limit: 5_000,
+          mutations,
+          batch_id: 'large-batch',
+          oldest_pending_mutation_id: 'large-0',
+        },
+      } satisfies RelayMessage));
+      const response = await reply;
+      expect(response.type).toBe('sync_exchange_response');
+      if (response.type === 'sync_exchange_response') {
+        expect(response.response.mutations).toHaveLength(1_000);
+        expect(response.response.has_more).toBe(false);
+        expect(response.response.rejected_mutation_ids).toHaveLength(5);
+        expect(response.response.rejected_mutation_ids[0]).toBe('large-1000');
+      }
+      expect(handle.store.mutationCount('vault-large')).toBe(1_000);
+    } finally {
+      socket.close();
+      await handle.close();
+    }
+  });
+
+  it('evicts mutations in global insertion order across vaults', () => {
+    const store = new OpaqueEnvelopeStore(2);
+    const makeMutation = (id: string, vaultId: string) => ({
+      mutation_id: id,
+      vault_id: vaultId,
+      device_id: 'web',
+      clock: { lamport: 1, vector: { web: 1 } },
+      entity_type: 'transaction' as const,
+      entity_id: id,
+      operation: 'create' as const,
+      base_version: 0,
+      changed_fields: [],
+      ciphertext: id,
+    });
+    store.appendMutation(makeMutation('first', 'vault-a'));
+    store.appendMutation(makeMutation('second', 'vault-b'));
+    store.appendMutation(makeMutation('third', 'vault-a'));
+    expect(store.mutationCount('vault-a')).toBe(1);
+    expect(store.mutationCount('vault-b')).toBe(1);
+    expect(store.exchange('vault-a', {}, 10).mutations.map((item) => item.mutation_id)).toEqual(['third']);
   });
 });
 

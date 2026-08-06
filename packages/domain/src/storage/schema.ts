@@ -18,7 +18,7 @@ export interface Db {
   close(): Promise<void>;
 }
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 3;
 
 export const SCHEMA_DDL = `
 PRAGMA foreign_keys = ON;
@@ -97,7 +97,6 @@ CREATE INDEX IF NOT EXISTS idx_transactions_vault_date ON transactions(vault_id,
 CREATE INDEX IF NOT EXISTS idx_transactions_merchant ON transactions(vault_id, merchant_display, occurred_on);
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(vault_id, category_id, occurred_on);
 CREATE INDEX IF NOT EXISTS idx_transactions_import ON transactions(vault_id, statement_import_id);
-
 CREATE TABLE IF NOT EXISTS statement_imports (
   id TEXT PRIMARY KEY,
   vault_id TEXT NOT NULL REFERENCES vaults(id),
@@ -157,6 +156,20 @@ CREATE TABLE IF NOT EXISTS categorization_rules (
 );
 CREATE INDEX IF NOT EXISTS idx_rules_vault ON categorization_rules(vault_id);
 
+CREATE TABLE IF NOT EXISTS category_correction_history (
+  id TEXT PRIMARY KEY,
+  vault_id TEXT NOT NULL REFERENCES vaults(id),
+  transaction_id TEXT,
+  import_id TEXT,
+  merchant_normalized TEXT NOT NULL,
+  previous_category_id TEXT,
+  next_category_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_category_corrections_vault ON category_correction_history(vault_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_category_corrections_merchant ON category_correction_history(vault_id, merchant_normalized, created_at);
+
 CREATE TABLE IF NOT EXISTS mutation_log (
   id TEXT PRIMARY KEY,
   vault_id TEXT NOT NULL REFERENCES vaults(id),
@@ -206,9 +219,27 @@ CREATE TABLE IF NOT EXISTS demo_datasets (
 );
 `;
 
-/** Apply the schema and record the version in user_version. */
+/**
+ * Apply the schema without destroying existing vault data, then run monotonic
+ * migrations. The current migration is intentionally additive: it establishes
+ * the versioned boundary future export/sync work will extend.
+ */
 export async function applySchema(db: Db): Promise<void> {
   await db.exec(SCHEMA_DDL);
+  const current = await schemaVersion(db);
+  if (current > SCHEMA_VERSION) {
+    throw new Error(`Unsupported vault schema version: ${current}`);
+  }
+  if (current < 2) {
+    // Version 2 is an additive query index. Existing rows remain untouched.
+    await db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_review_state ON transactions(vault_id, review_state, occurred_on)');
+  }
+  if (current < 3) {
+    // Version 3 adds explicit correction history for explainable learning.
+    await db.exec('CREATE TABLE IF NOT EXISTS category_correction_history (id TEXT PRIMARY KEY, vault_id TEXT NOT NULL REFERENCES vaults(id), transaction_id TEXT, import_id TEXT, merchant_normalized TEXT NOT NULL, previous_category_id TEXT, next_category_id TEXT NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL)');
+    await db.exec('CREATE INDEX IF NOT EXISTS idx_category_corrections_vault ON category_correction_history(vault_id, created_at)');
+    await db.exec('CREATE INDEX IF NOT EXISTS idx_category_corrections_merchant ON category_correction_history(vault_id, merchant_normalized, created_at)');
+  }
   await db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
 

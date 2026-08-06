@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { CommitCounts, ImportPreviewDto, UserDecision } from '@expense-tracker/contracts';
 import { ERROR_CODES, SAFE_MESSAGES, isAppError } from '@expense-tracker/contracts';
-import { commitImportToDb, listCategories, listTransactions } from '@expense-tracker/domain';
+import { commitImportToDb, listCategories, listRules, listTransactions } from '@expense-tracker/domain';
 import type { Category, Db } from '@expense-tracker/domain';
 import type { ParseProgress } from '@expense-tracker/parsing';
 import { ImportDropzone } from './components/ImportDropzone';
@@ -9,6 +9,7 @@ import { ReviewTable } from './components/ReviewTable';
 import { CommitBar } from './components/CommitBar';
 import { buildImportPreview, parseErrorMessage } from './import-pipeline';
 import { parseFileInWorker } from './parse-file';
+import { encryptMutationPayload } from '../../local';
 import type { ParseFileFn } from './parse-file';
 
 type Stage = 'idle' | 'parsing' | 'review' | 'committed' | 'error';
@@ -16,16 +17,18 @@ type Stage = 'idle' | 'parsing' | 'review' | 'committed' | 'error';
 interface ImportPageProps {
   db: Db | null;
   vaultId: string | null;
+  defaultCurrency?: string;
   parseFile?: ParseFileFn;
 }
 
-export function ImportPage({ db, vaultId, parseFile = parseFileInWorker }: ImportPageProps) {
+export function ImportPage({ db, vaultId, defaultCurrency = 'USD', parseFile = parseFileInWorker }: ImportPageProps) {
   const [stage, setStage] = useState<Stage>('idle');
   const [progress, setProgress] = useState<ParseProgress | null>(null);
   const [preview, setPreview] = useState<ImportPreviewDto | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [decisions, setDecisions] = useState<Map<string, UserDecision>>(new Map());
+  const [corrections, setCorrections] = useState<Map<string, { categoryId: string; rememberRule: boolean }>>(new Map());
   const [categories, setCategories] = useState<Category[]>([]);
   const [committing, setCommitting] = useState(false);
 
@@ -41,6 +44,7 @@ export function ImportPage({ db, vaultId, parseFile = parseFileInWorker }: Impor
       setErrorMessage(null);
       setPreview(null);
       setDecisions(new Map());
+      setCorrections(new Map());
 
       try {
         const outcome = await parseFile(file, setProgress);
@@ -51,7 +55,7 @@ export function ImportPage({ db, vaultId, parseFile = parseFileInWorker }: Impor
         const nextPreview = buildImportPreview(outcome.statement, {
           vaultId,
           categories: categoryRows,
-          personalRules: [],
+          personalRules: await listRules(db, vaultId),
           existingTransactions: existing,
           now: new Date().toISOString(),
           fileName: file.name,
@@ -83,6 +87,19 @@ export function ImportPage({ db, vaultId, parseFile = parseFileInWorker }: Impor
       next.set(rowId, decision);
       return next;
     });
+  }, []);
+
+  const handleCategoryCorrection = useCallback((rowId: string, categoryId: string, rememberRule: boolean) => {
+    if (!categoryId) {
+      setCorrections((previous) => {
+        const next = new Map(previous);
+        next.delete(rowId);
+        return next;
+      });
+      return;
+    }
+    setCorrections((previous) => new Map(previous).set(rowId, { categoryId, rememberRule }));
+    setDecisions((previous) => new Map(previous).set(rowId, 'accept'));
   }, []);
 
   const effectiveDecisions = useMemo(() => {
@@ -123,6 +140,20 @@ export function ImportPage({ db, vaultId, parseFile = parseFileInWorker }: Impor
     if (committing) return;
     setCommitting(true);
     try {
+      const mutationCiphertext = await encryptMutationPayload({
+        import_id: preview.session.import_id,
+        decisions: [...effectiveDecisions.entries()],
+        corrections: [...corrections.entries()],
+        rows: preview.rows.map((row) => ({
+          id: row.id,
+          date: row.parsed_date,
+          merchant: row.parsed_merchant,
+          amount_minor: row.parsed_amount_minor,
+          currency: row.parsed_currency ?? defaultCurrency,
+          category_id: row.suggested_category_id,
+          decision: effectiveDecisions.get(row.id) ?? row.user_decision,
+        })),
+      }, `${vaultId}:statement-import:${preview.session.import_id}`);
       await commitImportToDb(db, {
         session: {
           id: preview.session.import_id,
@@ -160,8 +191,12 @@ export function ImportPage({ db, vaultId, parseFile = parseFileInWorker }: Impor
           user_decision: effectiveDecisions.get(row.id) ?? row.user_decision,
         })),
         decisions: effectiveDecisions,
+        defaultCurrency,
         now: new Date().toISOString(),
         lastModifiedBy: 'web',
+        mutationDeviceId: 'web',
+        categoryCorrections: [...corrections.entries()].map(([rowId, correction]) => ({ rowId, ...correction })),
+        mutationCiphertext,
       });
       setStage('committed');
     } catch (error) {
@@ -176,12 +211,13 @@ export function ImportPage({ db, vaultId, parseFile = parseFileInWorker }: Impor
     } finally {
       setCommitting(false);
     }
-  }, [db, vaultId, preview, counts.unresolved, effectiveDecisions, committing]);
+  }, [db, vaultId, defaultCurrency, preview, counts.unresolved, effectiveDecisions, corrections, committing]);
 
   const reset = useCallback(() => {
     setStage('idle');
     setPreview(null);
     setDecisions(new Map());
+    setCorrections(new Map());
     setErrorMessage(null);
     setProgress(null);
   }, []);
@@ -222,9 +258,11 @@ export function ImportPage({ db, vaultId, parseFile = parseFileInWorker }: Impor
             preview={preview}
             categories={categories}
             decisions={decisions}
+            corrections={corrections}
             attentionOnly={attentionOnly}
             onToggleAttention={() => setAttentionOnly((value) => !value)}
             onDecision={handleDecision}
+            onCategoryCorrection={handleCategoryCorrection}
           />
           <CommitBar counts={counts} disabled={committing} onCommit={() => void handleCommit()} onCancel={reset} />
         </div>

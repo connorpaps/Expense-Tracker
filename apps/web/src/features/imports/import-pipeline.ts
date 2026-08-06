@@ -68,6 +68,7 @@ export function buildImportPreview(statement: ParsedStatement, context: Pipeline
       // Duplicate candidates require an explicit user decision; they must not
       // silently enter the vault just because the parser recognized the row.
       user_decision: row.rowStatus === 'error' || duplicates.length > 0 ? 'pending' : 'accept',
+      explanation: suggestion.explanation,
     };
   });
 

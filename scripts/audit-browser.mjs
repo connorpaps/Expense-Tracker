@@ -2,9 +2,10 @@
  * Live browser audit (US1 import/review MVP) via headless Chrome CDP.
  *
  * Drives the real app at the running dev server with a fresh profile and
- * asserts: vault bootstrap, page navigation, CSV import (exclude + commit),
- * duplicate re-import (attention filter + decisions), PDF import + commit,
- * empty-file error state, and malformed-file diagnostics. Captures every
+ * asserts: vault bootstrap, page navigation, Settings privacy controls, CSV
+ * import (exclude + commit), duplicate re-import (attention filter + decisions),
+ * PDF import + commit, empty-file error state, and malformed-file diagnostics.
+ * Captures every
  * console error/exception/network failure. Exits non-zero on assertion failure.
  *
  * Usage:  node scripts/audit-browser.mjs [port]
@@ -181,11 +182,20 @@ ws.onopen = async () => {
         if (link) link.click();
       })()`);
       const h2 = await waitFor(
-        `document.querySelector('h1')?.textContent ?? null`,
+        `document.querySelector('h1')?.textContent === '${heading}' ? '${heading}' : null`,
         `heading for ${label}`,
       );
       record(`navigate to ${label}`, h2 === heading, { heading: h2 });
     }
+
+    const privacyControls = await evalValue(`(() => ({
+      exportButton: !!Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Export encrypted backup'),
+      inspectButton: !!Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Inspect backup'),
+      clearButton: !!Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Delete all local data'),
+      backupHeading: document.querySelector('#backup-heading')?.textContent ?? '',
+      dangerHeading: document.querySelector('#danger-zone-heading')?.textContent ?? '',
+    }))()`);
+    record('Settings: privacy controls present', privacyControls.exportButton && privacyControls.inspectButton && privacyControls.clearButton && privacyControls.backupHeading === 'Export or restore this vault' && privacyControls.dangerHeading === 'Clear this browser', privacyControls);
 
     // --- 3. CSV import: review, exclude a row, commit ---
     await evalValue(`(() => { const link = Array.from(document.querySelectorAll('.app-nav__link')).find((l) => l.textContent.trim() === 'Import'); if (link) link.click(); })()`);

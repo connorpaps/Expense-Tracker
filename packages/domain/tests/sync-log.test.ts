@@ -62,6 +62,17 @@ describe('Append-only mutation log (T013)', () => {
     });
   });
 
+  it('treats duplicate append requests as idempotent', async () => {
+    await withVaultedDb(async (db) => {
+      const input = mutation({ mutationId: 'm-duplicate', entityId: 'tx-duplicate', deviceId: 'device-a', clock: emptyClock('device-a', 1) });
+      const first = await appendMutation(db, input);
+      const second = await appendMutation(db, { ...input, ciphertext: 'different', now: '2026-08-05T00:00:00.000Z' });
+      expect(second.id).toBe(first.id);
+      expect(second.ciphertext).toBe('opaque');
+      expect(await mutationsNewerThan(db, 'vault-1', {}, 10)).toHaveLength(1);
+    });
+  });
+
   it('marks failed mutations with retry counts and pending status', async () => {
     await withVaultedDb(async (db) => {
       const input = mutation({ mutationId: 'm-fail', entityId: 'tx-2', deviceId: 'device-a', clock: emptyClock('device-a', 2) });

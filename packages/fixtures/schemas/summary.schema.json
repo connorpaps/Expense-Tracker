@@ -23,11 +23,21 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["category_id", "spent_minor", "count"],
+        "required": ["category_id", "spent_minor", "count", "provenance"],
         "properties": {
           "category_id": { "type": "string" },
           "spent_minor": { "type": "integer" },
-          "count": { "type": "integer", "minimum": 0 }
+          "count": { "type": "integer", "minimum": 0 },
+          "provenance": {
+            "type": "object",
+            "required": ["sources", "confidences", "review_count"],
+            "properties": {
+              "sources": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+              "confidences": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+              "review_count": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          }
         },
         "additionalProperties": false
       }

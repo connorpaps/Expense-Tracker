@@ -67,7 +67,7 @@ export async function appendMutation(db: Db, input: AppendMutationInput): Promis
     return existing;
   }
   await db.exec(
-    `INSERT INTO mutation_log (id, vault_id, entity_type, entity_id, operation, base_version, device_id, lamport_clock, vector_clock, changed_fields, ciphertext, origin, status, conflict_id, created_at, applied_at, retry_count, last_error_code)
+    `INSERT OR IGNORE INTO mutation_log (id, vault_id, entity_type, entity_id, operation, base_version, device_id, lamport_clock, vector_clock, changed_fields, ciphertext, origin, status, conflict_id, created_at, applied_at, retry_count, last_error_code)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.mutationId,
@@ -106,61 +106,102 @@ export async function findMutation(db: Db, vaultId: string, mutationId: string):
  * when the mutation_id already exists, and 'conflict' when causally concurrent
  * edits overlap in changed fields.
  */
+export interface LocalMutationInput extends Omit<AppendMutationInput, 'clock'> {
+  clock?: MutationClock;
+  apply: (db: Db) => Promise<void>;
+}
+
+/** Append and apply any local entity mutation atomically. */
+export async function persistMutation(db: Db, input: LocalMutationInput): Promise<void> {
+  await db.transaction(async (transactionDb) => {
+    const existing = await findMutation(transactionDb, input.vaultId, input.mutationId);
+    if (existing) return;
+    const clock = input.clock ?? await nextMutationClock(transactionDb, input.vaultId, input.deviceId);
+    await appendMutation(transactionDb, { ...input, clock });
+    await input.apply(transactionDb);
+  });
+}
+
+/**
+ * Apply one remote mutation or record its conflict atomically. Callers must
+ * invoke this at the database transaction boundary; the Db adapter does not
+ * support nesting this transaction inside another BEGIN/COMMIT scope. When a
+ * projection callback is supplied, it runs between append and mark-applied in
+ * the same transaction, so a projection failure rolls back both records.
+ */
 export async function applyMutationOnce(
   db: Db,
   vaultId: string,
   mutation: AppendMutationInput,
+  applyProjection?: (db: Db) => Promise<void>,
 ): Promise<AppliedResult> {
-  const existing = await findMutation(db, vaultId, mutation.mutationId);
-  if (existing) {
-    return { kind: 'duplicate', mutation: existing };
-  }
+  if (mutation.vaultId !== vaultId) throw new Error('Remote mutation envelope targets the wrong vault.');
+  return db.transaction(async (transactionDb) => {
+    const existing = await findMutation(transactionDb, vaultId, mutation.mutationId);
+    if (existing) {
+      if (!sameMutationEnvelope(existing, mutation)) {
+        throw new Error('A duplicate mutation id carried different envelope contents.');
+      }
+      return { kind: 'duplicate', mutation: existing };
+    }
 
-  const previous = await latestMutationForEntity(db, vaultId, mutation.entityId);
-  if (previous && clocksAreConcurrent(previous.clock, mutation.clock) && fieldsOverlap(previous, mutation)) {
-    const conflictId = `conflict-${mutation.mutationId}`;
-    await db.exec(
-      `INSERT OR IGNORE INTO conflicts (id, vault_id, entity_type, entity_id, conflicting_fields, local_values, remote_values, base_values, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)`,
-      [
-        conflictId,
-        vaultId,
-        mutation.entityType,
-        mutation.entityId,
-        JSON.stringify(mutation.changedFields),
-        previous.ciphertext,
-        mutation.ciphertext,
-        null,
-        mutation.now,
-      ],
-    );
-    const stored = await appendMutationAs(db, mutation, 'conflict');
-    return { kind: 'conflict', mutation: stored, conflictId };
-  }
+    const previous = await latestMutationForEntity(transactionDb, vaultId, mutation.entityId);
+    if (previous && clocksAreConcurrent(previous.clock, mutation.clock) && fieldsOverlap(previous, mutation)) {
+      const conflictId = `conflict-${mutation.mutationId}`;
+      const conflictingFields = overlappingFields(previous, mutation);
+      await transactionDb.exec(
+        `INSERT OR IGNORE INTO conflicts (id, vault_id, entity_type, entity_id, conflicting_fields, local_values, remote_values, base_values, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)`,
+        [
+          conflictId,
+          vaultId,
+          mutation.entityType,
+          mutation.entityId,
+          JSON.stringify(conflictingFields),
+          previous.ciphertext,
+          mutation.ciphertext,
+          null,
+          mutation.now,
+        ],
+      );
+      const stored = await appendMutationAs(transactionDb, mutation, 'conflict', conflictId);
+      return { kind: 'conflict', mutation: stored, conflictId };
+    }
 
-  const appended = await appendMutation(db, mutation);
-  await markApplied(db, vaultId, mutation.mutationId, mutation.now);
-  return { kind: 'applied', mutation: appended };
+    const appended = await appendMutation(transactionDb, mutation);
+    if (applyProjection) await applyProjection(transactionDb);
+    await markApplied(transactionDb, vaultId, mutation.mutationId, mutation.now);
+    return { kind: 'applied', mutation: appended };
+  });
 }
 
 /** Field-aware overlap check between a stored mutation and an incoming one. */
 function fieldsOverlap(previous: MutationLogRow, next: AppendMutationInput): boolean {
-  if (previous.entity_id !== next.entityId) return false;
-  if (previous.operation === 'delete' || next.operation === 'delete') return true;
-  if (previous.operation === 'create' || next.operation === 'create') return true;
+  return overlappingFields(previous, next).length > 0;
+}
+
+function overlappingFields(previous: MutationLogRow, next: AppendMutationInput): string[] {
+  if (previous.entity_id !== next.entityId) return [];
+  if (previous.operation === 'delete' || next.operation === 'delete' || previous.operation === 'create' || next.operation === 'create') {
+    return [...new Set([...previous.changed_fields, ...next.changedFields])];
+  }
   const prevFields = previous.changed_fields;
   const nextFields = next.changedFields;
-  if (prevFields.length === 0 || nextFields.length === 0) return true;
-  return prevFields.some((f) => nextFields.includes(f));
+  // Empty field metadata is an unknown scope, not proof that edits are disjoint.
+  // Preserve the conservative conflict behavior and make that uncertainty
+  // visible to conflict-review clients.
+  if (prevFields.length === 0 || nextFields.length === 0) return ['*'];
+  return prevFields.filter((field) => nextFields.includes(field));
 }
 
 async function appendMutationAs(
   db: Db,
   input: AppendMutationInput,
   status: MutationStatus,
+  conflictId: string | null = null,
 ): Promise<MutationLogRow> {
   await db.exec(
-    `INSERT INTO mutation_log (id, vault_id, entity_type, entity_id, operation, base_version, device_id, lamport_clock, vector_clock, changed_fields, ciphertext, origin, status, conflict_id, created_at, applied_at, retry_count, last_error_code)
+    `INSERT OR IGNORE INTO mutation_log (id, vault_id, entity_type, entity_id, operation, base_version, device_id, lamport_clock, vector_clock, changed_fields, ciphertext, origin, status, conflict_id, created_at, applied_at, retry_count, last_error_code)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.mutationId,
@@ -176,7 +217,7 @@ async function appendMutationAs(
       input.ciphertext,
       input.origin,
       status,
-      null,
+      conflictId,
       input.now,
       null,
       0,
@@ -242,12 +283,30 @@ function isNewerThan(mutation: MutationLogRow, knownClock: KnownClock): boolean 
   return mutation.clock.lamport > known;
 }
 
+export async function nextMutationClock(db: Db, vaultId: string, deviceId: string): Promise<MutationClock> {
+  const row = await db.get<{ lamport: number }>(
+    'SELECT MAX(lamport_clock) AS lamport FROM mutation_log WHERE vault_id = ? AND device_id = ?',
+    [vaultId, deviceId],
+  );
+  const lamport = (row?.lamport ?? 0) + 1;
+  return { lamport, vector: { [deviceId]: lamport } };
+}
+
 export async function pendingMutationCount(db: Db, vaultId: string): Promise<number> {
   const row = await db.get<{ n: number }>(
     "SELECT COUNT(*) AS n FROM mutation_log WHERE vault_id = ? AND status IN ('pending', 'failed', 'disconnected')",
     [vaultId],
   );
   return row?.n ?? 0;
+}
+
+/** Local failed records waiting for a future connected transport retry. */
+export async function listFailedMutations(db: Db, vaultId: string): Promise<MutationLogRow[]> {
+  const rows = await db.all<SqlRow>(
+    "SELECT * FROM mutation_log WHERE vault_id = ? AND status = 'failed' ORDER BY created_at ASC",
+    [vaultId],
+  );
+  return rows.map(mapRow);
 }
 
 export async function computeCheckpoint(db: Db, vaultId: string): Promise<KnownClock> {
@@ -292,6 +351,20 @@ export function mergeIntoCheckpoint(local: MutationClock, checkpoint: KnownClock
 }
 
 export { clockHappenedBefore, clocksAreConcurrent };
+
+function sameMutationEnvelope(existing: MutationLogRow, incoming: AppendMutationInput): boolean {
+  return existing.vault_id === incoming.vaultId
+    && existing.entity_type === incoming.entityType
+    && existing.entity_id === incoming.entityId
+    && existing.operation === incoming.operation
+    && existing.base_version === incoming.baseVersion
+    && existing.device_id === incoming.deviceId
+    && existing.clock.lamport === incoming.clock.lamport
+    && serializeVector(existing.clock.vector) === serializeVector(incoming.clock.vector)
+    && JSON.stringify([...existing.changed_fields].sort()) === JSON.stringify([...incoming.changedFields].sort())
+    && existing.ciphertext === incoming.ciphertext
+    && existing.origin === incoming.origin;
+}
 
 function mapRow(row: SqlRow): MutationLogRow {
   return {

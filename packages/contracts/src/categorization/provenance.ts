@@ -11,6 +11,14 @@ export type CategorySource =
 
 export type CategoryConfidence = 'confirmed' | 'high' | 'medium' | 'low' | 'unresolved';
 
+export interface CategoryExplanation {
+  source: CategorySource;
+  confidence: CategoryConfidence;
+  matchedRuleId: string | null;
+  matchedPattern: string | null;
+  detail: string;
+}
+
 export const CATEGORY_SOURCE_LABELS: Record<CategorySource, string> = {
   user: 'You chose this',
   personal_rule: 'Your rule',

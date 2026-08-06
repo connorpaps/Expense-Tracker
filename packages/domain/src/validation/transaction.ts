@@ -9,6 +9,7 @@ export interface TransactionInput {
   amount_minor?: number | null;
   currency?: string | null;
   category_id?: string | null;
+  require_category?: boolean;
 }
 
 export type ValidationIssue = {
@@ -41,8 +42,8 @@ export function validateTransaction(input: TransactionInput): ValidationIssue[] 
 
   if (input.amount_minor === null || input.amount_minor === undefined) {
     issues.push({ code: ERROR_CODES.AMOUNT_INVALID, field: 'amount_minor', message: 'An amount is required.' });
-  } else if (!Number.isSafeInteger(input.amount_minor)) {
-    issues.push({ code: ERROR_CODES.AMOUNT_INVALID, field: 'amount_minor', message: 'Enter a valid amount.' });
+  } else if (!Number.isSafeInteger(input.amount_minor) || input.amount_minor === 0) {
+    issues.push({ code: ERROR_CODES.AMOUNT_INVALID, field: 'amount_minor', message: 'Enter a non-zero amount.' });
   }
 
   if (!input.currency) {
@@ -52,6 +53,14 @@ export function validateTransaction(input: TransactionInput): ValidationIssue[] 
       code: ERROR_CODES.VALIDATION_FAILED,
       field: 'currency',
       message: 'This currency is not supported.',
+    });
+  }
+
+  if (input.require_category && !input.category_id) {
+    issues.push({
+      code: ERROR_CODES.VALIDATION_FAILED,
+      field: 'category_id',
+      message: 'Choose a category.',
     });
   }
 

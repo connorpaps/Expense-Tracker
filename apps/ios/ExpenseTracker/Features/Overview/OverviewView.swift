@@ -3,6 +3,8 @@ import SwiftUI
 struct OverviewView: View {
     @ObservedObject var store: InMemoryVaultStore
     @State private var period: Period = .month
+    @State private var customStart = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+    @State private var customEnd = Date()
 
     enum Period: String, CaseIterable, Identifiable {
         case week = "Week"
@@ -12,14 +14,34 @@ struct OverviewView: View {
         var id: String { rawValue }
     }
 
+    private var activeTransactions: [ExpenseTransaction] {
+        guard period != .custom || customEnd >= customStart else { return [] }
+        return store.transactions.filter { transaction in
+            let day = Calendar.current.startOfDay(for: transaction.occurredOn)
+            let today = Calendar.current.startOfDay(for: Date())
+            switch period {
+            case .week:
+                guard let weekInterval = Calendar.current.dateInterval(of: .weekOfYear, for: today) else { return false }
+                return weekInterval.contains(day)
+            case .month:
+                guard let monthInterval = Calendar.current.dateInterval(of: .month, for: today) else { return false }
+                return monthInterval.contains(day)
+            case .custom:
+                let start = Calendar.current.startOfDay(for: customStart)
+                let end = Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: customEnd) ?? customEnd
+                return day >= start && day <= end
+            }
+        }
+    }
+
     private var summary: Summary {
-        let spent = store.transactions.filter { $0.amount.minorUnits < 0 }.reduce(Int64(0)) { $0 + abs($1.amount.minorUnits) }
-        let credits = store.transactions.filter { $0.amount.minorUnits > 0 }.reduce(Int64(0)) { $0 + $1.amount.minorUnits }
+        let spent = activeTransactions.filter { $0.amount.minorUnits < 0 }.reduce(Int64(0)) { $0 + abs($1.amount.minorUnits) }
+        let credits = activeTransactions.filter { $0.amount.minorUnits > 0 }.reduce(Int64(0)) { $0 + $1.amount.minorUnits }
         return Summary(
             totalSpent: Money(minorUnits: spent),
             credits: Money(minorUnits: credits),
             netActivity: Money(minorUnits: credits - spent),
-            transactionCount: store.transactions.count
+            transactionCount: activeTransactions.count
         )
     }
 
@@ -35,9 +57,20 @@ struct OverviewView: View {
                 .pickerStyle(.segmented)
                 .accessibilityHint("Choose the period used for the summary")
 
+                if period == .custom {
+                    DatePicker("From", selection: $customStart, displayedComponents: .date)
+                    DatePicker("To", selection: $customEnd, displayedComponents: .date)
+                    if customEnd < customStart {
+                        Text("Choose an end date on or after the start date.")
+                            .font(.footnote)
+                            .foregroundStyle(ExpenseTrackerTokens.destructive)
+                            .accessibilityLabel("Invalid custom date range")
+                    }
+                }
+
                 summaryGrid
 
-                if store.transactions.isEmpty {
+                if activeTransactions.isEmpty {
                     emptyState
                 } else {
                     recentActivity
@@ -77,7 +110,7 @@ struct OverviewView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Recent activity")
                 .font(.headline)
-            ForEach(Array(store.transactions.prefix(5))) { transaction in
+            ForEach(Array(activeTransactions.prefix(5))) { transaction in
                 TransactionSummaryRow(transaction: transaction)
             }
         }
@@ -90,7 +123,7 @@ struct OverviewView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Label("Your vault is ready", systemImage: "lock.shield")
                     .font(.headline)
-                Text("Add an expense or import a statement to see your local spending picture.")
+                Text("Try another period, add an expense, or import a statement to see your local spending picture.")
                     .font(.body)
                     .foregroundStyle(ExpenseTrackerTokens.secondaryText)
             }

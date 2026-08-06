@@ -7,3 +7,6 @@ export * from './sync';
 export * from './validation';
 export * from './categorization';
 export * from './imports';
+export * from './transactions';
+export * from './privacy';
+export * from './vault-io';

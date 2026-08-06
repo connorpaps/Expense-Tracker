@@ -5,4 +5,5 @@ export * from './category';
 export * from './transaction';
 export * from './import';
 export * from './rules';
+export * from './categorization';
 export * from './mutation-log-entry';

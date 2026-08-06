@@ -14,7 +14,7 @@ error, and UI-state contracts.
 - Sync contract types: mutation envelopes, clocks, exchange, snapshot bootstrap, pairing.
 - Stable error codes and safe user-facing messages (`src/errors/`).
 - Security interface contracts (key store, envelope cipher, signer, key versions).
-- Categorization provenance/confidence vocabulary.
+- Categorization provenance/confidence vocabulary, including summary category source/confidence/review metadata.
 
 ## Source layout
 

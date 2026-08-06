@@ -25,7 +25,7 @@ export interface ConflictRecord {
   local_values: string;
   remote_values: string;
   base_values: string | null;
-  status: 'open' | 'resolved_local' | 'resolved_remote' | 'resolved_manual';
+  status: 'open' | 'resolved_local' | 'resolved_remote' | 'resolved_manual' | 'resolved_both';
   resolved_values: string | null;
   created_at: string;
   resolved_at: string | null;

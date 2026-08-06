@@ -12,7 +12,8 @@ import type { Transaction } from '../entities/transaction';
 import { newTransaction } from '../entities/transaction';
 import { validateTransaction } from '../validation/transaction';
 import type { Db } from '../storage/schema';
-import { appendMutation } from '../sync/mutation-log';
+import { appendMutation, nextMutationClock } from '../sync/mutation-log';
+import { recordCategoryCorrection, rememberMerchantRule } from '../categorization/personal-rules';
 import {
   getStatementImport,
   insertImportRows,
@@ -110,6 +111,12 @@ export function buildTransactionsFromRows(
   return { transactions, skippedRows };
 }
 
+export interface CategoryCorrectionCommit {
+  rowId: string;
+  categoryId: string;
+  rememberRule: boolean;
+}
+
 export interface PersistedImportCommit {
   importId: string;
   committedRows: number;
@@ -132,8 +139,9 @@ export async function commitImportToDb(
     lastModifiedBy?: Transaction['last_modified_by'];
     mutationDeviceId?: string;
     mutationClock?: MutationClock;
-    /** Required before a commit can enter the sync log; must be real encrypted ciphertext. */
-    mutationCiphertext?: string;
+    categoryCorrections?: CategoryCorrectionCommit[];
+    /** Every committed import has a real encrypted mutation record. */
+    mutationCiphertext: string;
   },
 ): Promise<PersistedImportCommit> {
   const existing = await getStatementImport(db, input.session.vault_id, input.session.id);
@@ -169,40 +177,104 @@ export async function commitImportToDb(
     });
   }
 
-  const persistedRows = [...plan.accepted, ...plan.excluded].map(({ row }) => row);
+  const corrections = new Map((input.categoryCorrections ?? []).map((correction) => [correction.rowId, correction]));
+  const correctedRows = plan.accepted.map(({ row }) => {
+    const correction = corrections.get(row.id);
+    if (!correction) return row;
+    return {
+      ...row,
+      suggested_category_id: correction.categoryId,
+      category_source: 'user' as const,
+      category_confidence: 'confirmed' as const,
+    };
+  });
+  const correctedPlan: CommitPlan = { ...plan, accepted: correctedRows.map((row) => ({ row, decision: 'accept' })) };
+  const correctedBuilt = buildTransactionsFromRows(correctedPlan, {
+    vaultId: input.session.vault_id,
+    importId: input.session.id,
+    defaultCurrency: input.defaultCurrency ?? 'USD',
+    now: input.now,
+    lastModifiedBy: input.lastModifiedBy ?? 'web',
+    sourceType: input.session.file_type,
+  });
+  if (correctedBuilt.skippedRows.length > 0) {
+    throw appError(ERROR_CODES.IMPORT_COMMIT_INCOMPLETE, 'Some corrected rows are invalid and must be reviewed again.', {
+      retryable: false,
+      rowReference: correctedBuilt.skippedRows[0]?.source_row_number ?? null,
+    });
+  }
+  const persistedRows = [...correctedPlan.accepted, ...plan.excluded].map(({ row }) => row);
+  let alreadyCommitted: PersistedImportCommit | null = null;
   await db.transaction(async (transactionDb) => {
-    await insertStatementImport(transactionDb, { ...input.session, status: 'review' });
+    const transactionImport = await getStatementImport(transactionDb, input.session.vault_id, input.session.id);
+    if (transactionImport?.status === 'committed') {
+      const committed = await listTransactions(transactionDb, { vaultId: input.session.vault_id });
+      const transactions = committed.filter((transaction) => transaction.statement_import_id === input.session.id);
+      alreadyCommitted = {
+        importId: input.session.id,
+        committedRows: transactions.length,
+        excludedRows: 0,
+        transactionIds: transactions.map((transaction) => transaction.id),
+      };
+      return;
+    }
+    if (!transactionImport) {
+      await insertStatementImport(transactionDb, { ...input.session, status: 'review' });
+    }
     await insertImportRows(transactionDb, input.session.vault_id, persistedRows);
-    for (const transaction of built.transactions) {
+    for (const transaction of correctedBuilt.transactions) {
       await insertTransaction(transactionDb, transaction);
     }
-    if (input.mutationCiphertext) {
-      await appendMutation(transactionDb, {
+    for (const { row } of correctedPlan.accepted) {
+      const correction = corrections.get(row.id);
+      if (!correction) continue;
+      const previousCategoryId = input.rows.find((candidate) => candidate.id === row.id)?.suggested_category_id ?? null;
+      if (previousCategoryId !== correction.categoryId) {
+        await recordCategoryCorrection(transactionDb, {
+        vaultId: input.session.vault_id,
+        importId: input.session.id,
+        merchant: row.parsed_merchant ?? '',
+          previousCategoryId,
+          nextCategoryId: correction.categoryId,
+          now: input.now,
+        });
+      }
+      if (correction.rememberRule) {
+        await rememberMerchantRule(transactionDb, {
+          vaultId: input.session.vault_id,
+          merchant: row.parsed_merchant ?? '',
+          categoryId: correction.categoryId,
+          now: input.now,
+        });
+      }
+    }
+    await appendMutation(transactionDb, {
         mutationId: `import-commit-${input.session.id}`,
         vaultId: input.session.vault_id,
         deviceId: input.mutationDeviceId ?? 'web',
-        clock: input.mutationClock ?? { lamport: 0, vector: { web: 0 } },
+        clock: input.mutationClock ?? await nextMutationClock(transactionDb, input.session.vault_id, input.mutationDeviceId ?? 'web'),
         entityType: 'statement_import',
         entityId: input.session.id,
         operation: 'import_commit',
         baseVersion: 0,
-        changedFields: ['transaction_ids'],
+        changedFields: ['transaction_ids', ...(corrections.size > 0 ? ['category_id', 'category_source', 'category_confidence', 'correction_history'] : []), ...(Array.from(corrections.values()).some((correction) => correction.rememberRule) ? ['categorization_rule', 'matcher', 'evidence_count', 'confidence', 'is_active'] : [])],
         ciphertext: input.mutationCiphertext,
         origin: 'importer',
         now: input.now,
       });
-    }
     await updateImportStatus(transactionDb, input.session.vault_id, input.session.id, {
       status: 'committed',
       completed_at: input.now,
     });
   });
 
+  if (alreadyCommitted) return alreadyCommitted;
+
   return {
     importId: input.session.id,
-    committedRows: built.transactions.length,
+    committedRows: correctedBuilt.transactions.length,
     excludedRows: plan.excluded.length,
-    transactionIds: built.transactions.map((transaction) => transaction.id),
+    transactionIds: correctedBuilt.transactions.map((transaction) => transaction.id),
   };
 }
 

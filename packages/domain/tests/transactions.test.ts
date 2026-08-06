@@ -32,6 +32,18 @@ describe('Transaction validation (T044 subset)', () => {
     expect(issues).toHaveLength(4);
   });
 
+  it('rejects zero-value amounts before they can enter a durable queue', () => {
+    const issues = validateTransaction({
+      occurred_on: '2026-08-04',
+      merchant_display: 'Cafe',
+      amount_minor: 0,
+      currency: 'USD',
+    });
+    expect(issues).toEqual([
+      expect.objectContaining({ code: ERROR_CODES.AMOUNT_INVALID, field: 'amount_minor' }),
+    ]);
+  });
+
   it('rejects blank merchant after trimming', () => {
     const issues = validateTransaction({
       occurred_on: '2026-08-04',

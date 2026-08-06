@@ -61,7 +61,7 @@ function envelopeIdOf(message: RelayMessage): string | null {
     case 'bootstrap_request':
       return message.request.vault_id;
     case 'pairing_start':
-      return message.pairing.pairing_code;
+      return message.pairing.initiating_device_id;
     default:
       return null;
   }

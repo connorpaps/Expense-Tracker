@@ -10,11 +10,14 @@ import type { Transaction } from '../entities/transaction';
 import type { StatementImport, ImportRowReview, RowDiagnostic } from '../entities/import';
 import type { CategorizationRule, ConflictRecord } from '../entities/rules';
 import type { Db, SqlRow } from './schema';
+import { isCurrencyCode } from '../money/currency';
+import { isValidIsoDate } from '../periods/dates';
 
 export interface TransactionQuery {
   vaultId: string;
   range?: { start: string; end: string };
   categoryId?: string | null;
+  currency?: string | null;
   search?: string | null;
   includeDeleted?: boolean;
   limit?: number;
@@ -137,14 +140,21 @@ export async function listPairedDevices(db: Db, vaultId: string): Promise<Paired
 // ---------------------------------------------------------------------------
 
 export async function insertCategory(db: Db, category: Category): Promise<void> {
+  const name = category.name.trim();
+  if (!name) throw new Error('Category name cannot be blank.');
+  const duplicate = await db.get<{ id: string }>(
+    'SELECT id FROM categories WHERE vault_id = ? AND lower(name) = lower(?) AND id <> ?',
+    [category.vault_id, name, category.id],
+  );
+  if (duplicate) throw new Error('Category names must be unique within a vault.');
   await db.exec(
     `INSERT INTO categories (id, vault_id, name, slug, kind, color_token, icon_name, position, is_active, created_at, updated_at, version)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       category.id,
       category.vault_id,
-      category.name,
-      category.slug,
+      name,
+      category.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
       category.kind,
       category.color_token,
       category.icon_name,
@@ -180,9 +190,103 @@ export async function updateCategoryActive(
   isActive: boolean,
   updatedAt: string,
 ): Promise<void> {
+  if (!isActive) {
+    const current = await getCategory(db, vaultId, categoryId);
+    if (current?.is_active) {
+      const activeRules = await db.get<{ count: number }>(
+        'SELECT COUNT(*) AS count FROM categorization_rules WHERE vault_id = ? AND category_id = ? AND is_active = 1',
+        [vaultId, categoryId],
+      );
+      if ((activeRules?.count ?? 0) > 0) {
+        throw new Error('Disable personal rules for this category before archiving it.');
+      }
+      const active = await db.get<{ count: number }>(
+        'SELECT COUNT(*) AS count FROM categories WHERE vault_id = ? AND is_active = 1',
+        [vaultId],
+      );
+      if ((active?.count ?? 0) <= 1) {
+        throw new Error('At least one active category must remain available.');
+      }
+    }
+  }
   await db.exec(
     'UPDATE categories SET is_active = ?, updated_at = ?, version = version + 1 WHERE vault_id = ? AND id = ?',
     [isActive ? 1 : 0, updatedAt, vaultId, categoryId],
+  );
+}
+
+export async function updateCategory(
+  db: Db,
+  vaultId: string,
+  categoryId: string,
+  patch: { name?: string; slug?: string; position?: number; updated_at: string },
+): Promise<void> {
+  const sets = ['updated_at = ?', 'version = version + 1'];
+  const params: unknown[] = [patch.updated_at];
+  if (patch.name !== undefined) {
+    const name = patch.name.trim();
+    if (!name) throw new Error('Category name cannot be blank.');
+    const duplicate = await db.get<{ id: string }>(
+      'SELECT id FROM categories WHERE vault_id = ? AND lower(name) = lower(?) AND id <> ?',
+      [vaultId, name, categoryId],
+    );
+    if (duplicate) throw new Error('Category names must be unique within a vault.');
+    sets.push('name = ?');
+    params.push(name);
+  }
+  if (patch.slug !== undefined) {
+    sets.push('slug = ?');
+    params.push(patch.slug);
+  }
+  if (patch.position !== undefined) {
+    sets.push('position = ?');
+    params.push(patch.position);
+  }
+  params.push(vaultId, categoryId);
+  await db.exec(`UPDATE categories SET ${sets.join(', ')} WHERE vault_id = ? AND id = ?`, params);
+}
+
+export async function reorderCategories(
+  db: Db,
+  vaultId: string,
+  orderedCategoryIds: string[],
+  updatedAt: string,
+): Promise<void> {
+  const categories = await listCategories(db, vaultId);
+  const known = new Set(categories.map((category) => category.id));
+  if (orderedCategoryIds.length !== categories.length || new Set(orderedCategoryIds).size !== categories.length || orderedCategoryIds.some((id) => !known.has(id))) {
+    throw new Error('Category order must include every category in this vault exactly once.');
+  }
+  for (const [position, categoryId] of orderedCategoryIds.entries()) {
+    await db.exec(
+      'UPDATE categories SET position = ?, updated_at = ?, version = version + 1 WHERE vault_id = ? AND id = ?',
+      [position, updatedAt, vaultId, categoryId],
+    );
+  }
+}
+
+export async function mergeCategory(
+  db: Db,
+  vaultId: string,
+  sourceCategoryId: string,
+  targetCategoryId: string,
+  updatedAt: string,
+): Promise<void> {
+  if (sourceCategoryId === targetCategoryId) throw new Error('Choose a different target category.');
+  const source = await getCategory(db, vaultId, sourceCategoryId);
+  const target = await getCategory(db, vaultId, targetCategoryId);
+  if (!source || !target || !target.is_active) throw new Error('The merge target must be an active category in this vault.');
+  await db.exec(
+    'UPDATE transactions SET category_id = ?, category_source = \'user\', category_confidence = \'confirmed\', updated_at = ?, version = version + 1 WHERE vault_id = ? AND category_id = ?',
+    [targetCategoryId, updatedAt, vaultId, sourceCategoryId],
+  );
+  await db.exec(
+    'UPDATE categorization_rules SET category_id = ?, updated_at = ?, version = version + 1 WHERE vault_id = ? AND category_id = ?',
+    [targetCategoryId, updatedAt, vaultId, sourceCategoryId],
+  );
+  await db.exec(
+    'UPDATE categories SET is_active = 0, updated_at = ?, version = version + 1 WHERE vault_id = ? AND id = ?',
+    [updatedAt, vaultId, sourceCategoryId],
   );
 }
 
@@ -208,6 +312,14 @@ function mapCategory(row: SqlRow): Category {
 // ---------------------------------------------------------------------------
 
 export async function insertTransaction(db: Db, tx: Transaction): Promise<void> {
+  if (!tx.merchant_display.trim()) throw new Error('Merchant is required.');
+  if (!isValidIsoDate(tx.occurred_on)) throw new Error('Date must be a valid ISO calendar date.');
+  if (!Number.isSafeInteger(tx.amount_minor) || tx.amount_minor === 0) throw new Error('Amount must be a non-zero integer.');
+  if (!isCurrencyCode(tx.currency)) throw new Error('Currency must be a supported ISO code.');
+  if (tx.category_id) {
+    const category = await getCategory(db, tx.vault_id, tx.category_id);
+    if (!category || !category.is_active) throw new Error('Category must be active in this vault.');
+  }
   await db.exec(
     `INSERT INTO transactions (id, vault_id, occurred_on, merchant_display, merchant_original, amount_minor, currency, category_id, category_source, category_confidence, note, source_type, statement_import_id, source_row_key, review_state, original_payload, created_at, updated_at, deleted_at, version, last_modified_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -257,6 +369,10 @@ export async function listTransactions(db: Db, query: TransactionQuery): Promise
     conditions.push('category_id = ?');
     params.push(query.categoryId);
   }
+  if (query.currency) {
+    conditions.push('currency = ?');
+    params.push(query.currency);
+  }
   if (query.search) {
     conditions.push('(merchant_display LIKE ? OR note LIKE ?)');
     const like = `%${query.search}%`;
@@ -280,6 +396,13 @@ export async function listTransactions(db: Db, query: TransactionQuery): Promise
 }
 
 export async function updateTransaction(db: Db, vaultId: string, txId: string, patch: TransactionPatch): Promise<void> {
+  if (patch.merchant_display !== undefined && !patch.merchant_display.trim()) throw new Error('Merchant is required.');
+  if (patch.amount_minor !== undefined && (!Number.isSafeInteger(patch.amount_minor) || patch.amount_minor === 0)) throw new Error('Amount must be a non-zero integer.');
+  if (patch.occurred_on !== undefined && !isValidIsoDate(patch.occurred_on)) throw new Error('Date must be a valid ISO calendar date.');
+  if (patch.category_id !== undefined && patch.category_id) {
+    const category = await getCategory(db, vaultId, patch.category_id);
+    if (!category || !category.is_active) throw new Error('Category must be active in this vault.');
+  }
   const sets: string[] = ['updated_at = ?', 'version = version + 1', 'last_modified_by = ?'];
   const params: unknown[] = [patch.updated_at, patch.last_modified_by];
   if (patch.occurred_on !== undefined) {
@@ -527,6 +650,10 @@ function mapImportRow(row: SqlRow): ImportRowReview {
 // ---------------------------------------------------------------------------
 
 export async function insertRule(db: Db, rule: CategorizationRule): Promise<void> {
+  const category = await getCategory(db, rule.vault_id, rule.category_id);
+  if (!category || !category.is_active) {
+    throw new Error('Personal rules must target an active category.');
+  }
   await db.exec(
     `INSERT INTO categorization_rules (id, vault_id, category_id, rule_type, matcher, priority, confidence, evidence_count, is_active, created_from, created_at, updated_at, version)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -546,6 +673,38 @@ export async function insertRule(db: Db, rule: CategorizationRule): Promise<void
       rule.version,
     ],
   );
+}
+
+export async function updateRule(
+  db: Db,
+  vaultId: string,
+  ruleId: string,
+  patch: Partial<Pick<CategorizationRule, 'category_id' | 'matcher' | 'priority' | 'confidence' | 'evidence_count' | 'is_active'>> & { updated_at: string },
+): Promise<void> {
+  const currentRule = await db.get<{ category_id: string }>(
+    'SELECT category_id FROM categorization_rules WHERE vault_id = ? AND id = ?',
+    [vaultId, ruleId],
+  );
+  const targetCategoryId = patch.category_id ?? currentRule?.category_id;
+  if (targetCategoryId && (patch.category_id !== undefined || patch.is_active === true)) {
+    const category = await getCategory(db, vaultId, targetCategoryId);
+    if (!category || !category.is_active) throw new Error('Personal rules must target an active category.');
+  }
+  const sets = ['updated_at = ?', 'version = version + 1'];
+  const params: unknown[] = [patch.updated_at];
+  for (const key of ['category_id', 'matcher', 'priority', 'confidence', 'evidence_count', 'is_active'] as const) {
+    const value = patch[key];
+    if (value !== undefined) {
+      sets.push(`${key} = ?`);
+      params.push(key === 'is_active' ? (value ? 1 : 0) : value);
+    }
+  }
+  params.push(vaultId, ruleId);
+  await db.exec(`UPDATE categorization_rules SET ${sets.join(', ')} WHERE vault_id = ? AND id = ?`, params);
+}
+
+export async function deleteRule(db: Db, vaultId: string, ruleId: string): Promise<void> {
+  await db.exec('DELETE FROM categorization_rules WHERE vault_id = ? AND id = ?', [vaultId, ruleId]);
 }
 
 export async function listRules(db: Db, vaultId: string, activeOnly = true): Promise<CategorizationRule[]> {
@@ -597,6 +756,14 @@ export async function insertConflict(db: Db, conflict: ConflictRecord): Promise<
       conflict.resolved_at,
     ],
   );
+}
+
+export async function getConflict(db: Db, vaultId: string, conflictId: string): Promise<ConflictRecord | null> {
+  const row = await db.get<SqlRow>(
+    'SELECT * FROM conflicts WHERE vault_id = ? AND id = ?',
+    [vaultId, conflictId],
+  );
+  return row ? mapConflict(row) : null;
 }
 
 export async function listOpenConflicts(db: Db, vaultId: string): Promise<ConflictRecord[]> {

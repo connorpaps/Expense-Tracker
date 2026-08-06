@@ -64,8 +64,12 @@ export interface SyncExchangeRequest {
   device_id: string;
   known_clock: KnownClock;
   requested_limit: number;
+  /** Opaque mutations uploaded by this device in the same idempotent batch. */
+  mutations?: MutationEnvelope[];
   batch_id: string;
   oldest_pending_mutation_id: string | null;
+  /** Bearer token issued by the relay pairing authority; required in secure mode. */
+  authorization_token?: string;
 }
 
 export interface SyncExchangeResponse {
@@ -73,6 +77,12 @@ export interface SyncExchangeResponse {
   mutations: MutationEnvelope[];
   checkpoint: KnownClock;
   has_more: boolean;
+  /** True when this request batch was already processed by the relay. */
+  replay: boolean;
+  /** Mutation IDs rejected because the same ID carried different contents. */
+  conflicting_mutation_ids: string[];
+  /** Mutation IDs not accepted because the relay batch limit was exceeded. */
+  rejected_mutation_ids: string[];
 }
 
 /** Create a causal after-relation between two clocks. */

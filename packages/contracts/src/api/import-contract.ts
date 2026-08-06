@@ -3,7 +3,7 @@
  * same normalized review contract from the same statement fixtures.
  */
 
-import type { CategoryConfidence, CategorySource } from '../categorization/provenance';
+import type { CategoryConfidence, CategorySource, CategoryExplanation } from '../categorization/provenance';
 import type { DiagnosticCode } from '../errors/error-codes';
 
 export type FileType = 'csv' | 'pdf';
@@ -82,6 +82,7 @@ export interface ImportRowReviewDto {
   diagnostics: RowDiagnosticDto[];
   duplicate_candidate_ids: string[];
   user_decision: UserDecision;
+  explanation?: CategoryExplanation;
 }
 
 export interface CommitCounts {

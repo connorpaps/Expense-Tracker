@@ -1,3 +1,4 @@
+import type { CategoryConfidence, CategorySource } from '../entities/enums';
 import type { Transaction } from '../entities/transaction';
 import { Money } from '../money/money';
 import type { DateRange } from '../periods/periods';
@@ -10,14 +11,24 @@ import { rangeContains } from '../periods/periods';
 
 export interface SummaryFilters {
   categoryId?: string | null;
-  /** Only include expense-kind transactions when true (default). */
+  /** Restrict arithmetic to one explicit currency; no implicit conversion occurs. */
+  currency?: string | null;
+  /** When true, exclude positive credit/refund transactions from the summary. */
   expensesOnly?: boolean;
+}
+
+/** Provenance for spending rows in a category; credits are intentionally excluded. */
+export interface CategoryProvenanceSummary {
+  sources: CategorySource[];
+  confidences: CategoryConfidence[];
+  reviewCount: number;
 }
 
 export interface CategoryTotal {
   categoryId: string;
   spentMinor: number;
   count: number;
+  provenance: CategoryProvenanceSummary;
 }
 
 export interface SpendingSummary {
@@ -43,7 +54,13 @@ export function computeSummary(
   let totalSpendMinor = 0;
   let totalCreditsMinor = 0;
   let transactionCount = 0;
-  const categoryMap = new Map<string, { spentMinor: number; count: number }>();
+  const categoryMap = new Map<string, {
+    spentMinor: number;
+    count: number;
+    sources: Set<CategorySource>;
+    confidences: Set<CategoryConfidence>;
+    reviewCount: number;
+  }>();
 
   for (const tx of transactions) {
     if (tx.deleted_at !== null) continue;
@@ -51,18 +68,34 @@ export function computeSummary(
     if (filters.categoryId !== undefined && filters.categoryId !== null && tx.category_id !== filters.categoryId) {
       continue;
     }
+    if (filters.currency !== undefined && filters.currency !== null && tx.currency !== filters.currency) {
+      continue;
+    }
     const currency = tx.currency;
     const amount = new Money(tx.amount_minor, currency);
+    if (filters.expensesOnly === true && !amount.isNegative) continue;
     transactionCount += 1;
 
     if (amount.isNegative) {
       totalSpendMinor += amount.minor;
-      const existing = categoryMap.get(tx.category_id ?? '');
+      const categoryId = tx.category_id ?? '';
+      const source = tx.category_source ?? 'manual_required';
+      const confidence = tx.category_confidence ?? 'unresolved';
+      const existing = categoryMap.get(categoryId);
       if (existing) {
         existing.spentMinor += amount.minor;
         existing.count += 1;
+        existing.sources.add(source);
+        existing.confidences.add(confidence);
+        if (tx.review_state === 'needs_review' || confidence === 'unresolved') existing.reviewCount += 1;
       } else {
-        categoryMap.set(tx.category_id ?? '', { spentMinor: amount.minor, count: 1 });
+        categoryMap.set(categoryId, {
+          spentMinor: amount.minor,
+          count: 1,
+          sources: new Set([source]),
+          confidences: new Set([confidence]),
+          reviewCount: tx.review_state === 'needs_review' || confidence === 'unresolved' ? 1 : 0,
+        });
       }
     } else {
       totalCreditsMinor += amount.minor;
@@ -70,7 +103,16 @@ export function computeSummary(
   }
 
   const categoryTotals = Array.from(categoryMap.entries())
-    .map(([categoryId, value]) => ({ categoryId, ...value }))
+    .map(([categoryId, value]) => ({
+      categoryId,
+      spentMinor: value.spentMinor,
+      count: value.count,
+      provenance: {
+        sources: [...value.sources].sort(),
+        confidences: [...value.confidences].sort(),
+        reviewCount: value.reviewCount,
+      },
+    }))
     .sort((a, b) => a.spentMinor - b.spentMinor);
 
   return {

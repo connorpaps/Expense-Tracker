@@ -1,5 +1,6 @@
 import type { FileType, ImportStatus, RowStatus, UserDecision } from '@expense-tracker/contracts';
 import type { CategoryConfidence, CategorySource } from './enums';
+import type { CategoryExplanation } from '@expense-tracker/contracts';
 import type { DiagnosticCode } from '@expense-tracker/contracts';
 
 export interface StatementImport {
@@ -43,6 +44,7 @@ export interface ImportRowReview {
   diagnostics: RowDiagnostic[];
   duplicate_candidate_ids: string[];
   user_decision: UserDecision;
+  explanation?: CategoryExplanation;
 }
 
 export function canTransition(from: ImportStatus, to: ImportStatus): boolean {

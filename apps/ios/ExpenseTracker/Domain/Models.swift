@@ -10,6 +10,22 @@ public struct Money: Equatable, Codable, Sendable {
     }
 }
 
+public struct PersonalCategoryRule: Identifiable, Equatable, Codable, Sendable {
+    public let id: UUID
+    public var matcher: String
+    public var category: String
+    public var evidenceCount: Int
+    public var isActive: Bool
+
+    public init(id: UUID = UUID(), matcher: String, category: String, evidenceCount: Int = 1, isActive: Bool = true) {
+        self.id = id
+        self.matcher = matcher
+        self.category = category
+        self.evidenceCount = evidenceCount
+        self.isActive = isActive
+    }
+}
+
 public struct ExpenseTransaction: Identifiable, Equatable, Codable, Sendable {
     public let id: UUID
     public var occurredOn: Date

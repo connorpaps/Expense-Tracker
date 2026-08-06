@@ -1,7 +1,7 @@
 /**
- * Deterministic default keyword/pattern rules (T056 prerequisite). These are
- * the generic defaults applied to import suggestions; personal rules outrank
- * them. A suggestion is always distinguishable from a user-confirmed category.
+ * Deterministic default keyword/pattern rules. Generic defaults are ranked by
+ * specificity first, then confidence, then declaration order. Personal rules
+ * are evaluated separately and always outrank these defaults.
  */
 
 import { normalizeMerchant } from './normalize';
@@ -29,25 +29,37 @@ export const FALLBACK_CATEGORY_NAME = 'Other';
 export interface MatchResult {
   categoryName: string;
   confidence: number;
-  matchedKeyword: string | null;
+  matchedKeyword: string;
+  specificity: number;
 }
 
 export function matchDefaultRules(merchant: string): MatchResult | null {
   const normalized = normalizeMerchant(merchant);
-  let best: MatchResult | null = null;
+  let best: (MatchResult & { order: number }) | null = null;
+  let order = 0;
   for (const rule of DEFAULT_KEYWORD_RULES) {
     for (const keyword of rule.keywords) {
-      if (normalized.includes(keyword)) {
-        const candidate: MatchResult = {
+      const normalizedKeyword = normalizeMerchant(keyword);
+      const padded = ` ${normalized} `;
+      const matches = padded.includes(` ${normalizedKeyword} `);
+      if (matches) {
+        const candidate = {
           categoryName: rule.categoryName,
           confidence: rule.confidence,
-          matchedKeyword: keyword,
+          matchedKeyword: normalizedKeyword,
+          specificity: normalizedKeyword.length,
+          order,
         };
-        if (!best || candidate.confidence > best.confidence) {
+        if (!best || candidate.specificity > best.specificity ||
+          (candidate.specificity === best.specificity && candidate.confidence > best.confidence) ||
+          (candidate.specificity === best.specificity && candidate.confidence === best.confidence && candidate.order < best.order)) {
           best = candidate;
         }
       }
+      order += 1;
     }
   }
-  return best;
+  if (!best) return null;
+  const { order: _order, ...result } = best;
+  return result;
 }

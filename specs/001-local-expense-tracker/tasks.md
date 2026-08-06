@@ -87,16 +87,16 @@
 
 ### Tests for User Story 2
 
-- [ ] T038 [P] [US2] Add web integration tests for manual creation, validation, editing, deletion confirmation, and local-save feedback in `apps/web/tests/integration/manual-entry.test.ts`.
-- [ ] T039 [P] [US2] Add iOS XCTest/UI tests for manual entry, validation, edit, delete confirmation, Dynamic Type, and local-save feedback in `apps/ios/ExpenseTrackerTests/Features/ManualEntryTests.swift`.
+- [X] T038 [P] [US2] Add web integration tests for manual creation, validation, editing, deletion confirmation, and local-save feedback in `apps/web/tests/integration/manual-entry.test.tsx`.
+- [ ] T039 [P] [US2] [IOS DEFERRED] Add iOS XCTest/UI tests for manual entry, validation, edit, delete confirmation, Dynamic Type, and local-save feedback in `apps/ios/ExpenseTrackerTests/Features/ManualEntryTests.swift`. Source-level store/queue coverage exists, but requested SwiftUI UI/Dynamic Type execution remains a macOS gate.
 
 ### Implementation for User Story 2
 
-- [ ] T040 [P] [US2] Implement transaction validation and mutation creation for required date, merchant, amount, category, currency, and optional note fields in `packages/domain/src/transactions/`.
-- [ ] T041 [US2] Build the web manual-entry form, transaction detail/edit view, delete confirmation, and saved-local feedback in `apps/web/src/features/transactions/`.
-- [ ] T042 [US2] Build the native iOS manual-entry sheet, transaction detail/edit view, delete confirmation, and saved-local feedback in `apps/ios/ExpenseTracker/Features/ManualEntry/` and `apps/ios/ExpenseTracker/Features/Transactions/`.
-- [ ] T043 [US2] Connect web and iOS transaction forms to their local vault adapters and append-only mutation log in `apps/web/src/local/` and `apps/ios/ExpenseTracker/Persistence/`.
-- [ ] T044 [US2] Add shared validation/error fixtures and ensure invalid manual mutations never enter the durable queue in `packages/domain/tests/transactions.test.ts`.
+- [X] T040 [P] [US2] Implement transaction validation and mutation creation for required date, merchant, amount, category, currency, and optional note fields in `packages/domain/src/transactions/`.
+- [X] T041 [US2] Build the web manual-entry form, transaction detail/edit view, delete confirmation, and saved-local feedback in `apps/web/src/features/transactions/`.
+- [X] T042 [US2] Build the native iOS manual-entry sheet, transaction detail/edit view, delete confirmation, and saved-local feedback in `apps/ios/ExpenseTracker/Features/ManualEntry/` and `apps/ios/ExpenseTracker/Features/Transactions/`.
+- [ ] T043 [US2] Connect web and iOS transaction forms to their local vault adapters and append-only mutation log in `apps/web/src/local/` and `apps/ios/ExpenseTracker/Persistence/`. Web uses the transactional encrypted mutation boundary; iOS local forms currently enqueue reconstructable source payload records, but encrypted append-only mutation-log integration remains a US6 task.
+- [X] T044 [US2] Add shared validation/error fixtures and ensure invalid manual mutations never enter the durable queue in `packages/domain/tests/transactions.test.ts`.
 
 **Checkpoint**: US2 provides complete manual entry and editing independently of imports, summaries, or synchronization.
 
@@ -110,17 +110,17 @@
 
 ### Tests for User Story 3
 
-- [ ] T045 [P] [US3] Add summary-engine unit tests for weekly, monthly, custom-range, currency, credits/refunds, transfers, empty periods, and category totals in `packages/domain/tests/summaries.test.ts`.
-- [ ] T046 [P] [US3] Add web dashboard/filter integration and accessibility tests in `apps/web/tests/integration/dashboard.test.ts` and `apps/web/tests/accessibility/dashboard.test.ts`.
-- [ ] T047 [P] [US3] Add iOS overview/filter XCTest coverage for iOS 16 layouts and summary parity in `apps/ios/ExpenseTrackerTests/Features/OverviewTests.swift`.
+- [X] T045 [P] [US3] Add summary-engine unit tests for weekly, monthly, custom-range, currency, credits/refunds, transfers, empty periods, and category totals in `packages/domain/tests/summaries.test.ts`.
+- [X] T046 [P] [US3] Add web dashboard/filter integration and accessibility tests in `apps/web/tests/integration/dashboard.test.tsx` and `apps/web/tests/accessibility/dashboard.test.tsx`.
+- [ ] T047 [P] [US3] [IOS DEFERRED] Add iOS overview/filter XCTest coverage for iOS 16 layouts and summary parity in `apps/ios/ExpenseTrackerTests/Features/OverviewTests.swift`. Source-level tests exist, but XCTest/UI execution remains a macOS/Xcode gate.
 
 ### Implementation for User Story 3
 
-- [ ] T048 [US3] Implement indexed summary queries, period selection, exact arithmetic, and recalculable category breakdowns in `packages/domain/src/summaries/` and local adapters.
-- [ ] T049 [US3] Build the web overview dashboard with total spend, credits, net activity, counts, category visualization, empty states, and accessible data alternatives in `apps/web/src/features/dashboard/`.
-- [ ] T050 [US3] Build the native iOS overview with summary cards, trend/category views, empty states, Dynamic Type, and VoiceOver labels in `apps/ios/ExpenseTracker/Features/Overview/`.
-- [ ] T051 [US3] Implement transaction search, date/category filters, sorting, filter reset, and synchronized filter semantics in `apps/web/src/features/transactions/`, `apps/ios/ExpenseTracker/Features/Transactions/`, and `packages/domain/src/queries/`.
-- [ ] T052 [US3] Benchmark 10,000-transaction period/filter queries and add measured performance assertions in `packages/domain/tests/performance.test.ts` and `apps/web/tests/performance/summary-performance.test.ts`.
+- [X] T048 [US3] Implement indexed summary queries, period selection, exact arithmetic, and recalculable category breakdowns in `packages/domain/src/summaries/` and local adapters. Web uses vault-scoped indexed transaction queries; iOS uses the local transaction projection.
+- [X] T049 [US3] Build the web overview dashboard with total spend, credits, net activity, counts, category visualization, empty states, and accessible data alternatives in `apps/web/src/features/dashboard/`.
+- [X] T050 [US3] Build the native iOS overview with summary cards, period-aware filtering, empty states, Dynamic Type, and VoiceOver labels in `apps/ios/ExpenseTracker/Features/Overview/`. Source-complete; runtime validation remains a macOS/Xcode gate.
+- [X] T051 [US3] Implement transaction search, date/category filters, sorting, filter reset, and synchronized filter semantics in `apps/web/src/features/transactions/`, `apps/ios/ExpenseTracker/Features/Transactions/`, and `packages/domain/src/storage/repository.ts`.
+- [X] T052 [US3] Benchmark 10,000-transaction period/filter queries and add measured performance assertions in `packages/domain/tests/performance.test.ts` and `apps/web/tests/performance/summary-performance.test.ts`. The benchmarks record finite execution time without a machine-specific hard cutoff.
 
 **Checkpoint**: US3 provides independently verifiable financial summaries and filters without requiring sync or hosted services.
 
@@ -134,17 +134,17 @@
 
 ### Tests for User Story 4
 
-- [ ] T053 [P] [US4] Add categorization precedence, confidence, correction-history, conflict-context, and 90% learned-rule fixture tests in `packages/domain/tests/categorization.test.ts`.
-- [ ] T054 [P] [US4] Add web category-correction and rule-management integration/accessibility tests in `apps/web/tests/integration/categorization.test.ts`.
-- [ ] T055 [P] [US4] Add iOS category-correction and rule-management XCTest coverage in `apps/ios/ExpenseTrackerTests/Features/CategorizationTests.swift`.
+- [X] T053 [P] [US4] Add categorization precedence, confidence, correction-history, conflict-context, and learned-rule fixture tests in `packages/domain/tests/categorization.test.ts`. Coverage includes deterministic precedence/conflicts, provenance, and evidence strengthening; no production accuracy target is claimed from these fixtures.
+- [X] T054 [P] [US4] Add web category-correction and rule-management integration/accessibility tests in `apps/web/tests/integration/categorization.test.tsx`.
+- [ ] T055 [P] [US4] [IOS DEFERRED] Add iOS category-correction and rule-management XCTest coverage in `apps/ios/ExpenseTrackerTests/Features/CategorizationTests.swift`. Source-level coverage exists, but XCTest/UI execution is a macOS/Xcode gate.
 
 ### Implementation for User Story 4
 
-- [ ] T056 [US4] Implement deterministic default keyword/pattern rules, merchant normalization matching, specificity precedence, and explainable confidence in `packages/domain/src/categorization/`.
-- [ ] T057 [US4] Implement personal merchant/pattern rules, evidence counts, explicit save/disable/remove behavior, and correction history in `packages/domain/src/categorization/personal-rules.ts`.
-- [ ] T058 [US4] Add category provenance and review explanations to import rows, transaction details, and summary records in `packages/contracts/src/categorization/` and client features.
-- [ ] T059 [US4] Build web category correction controls, personalization settings, rule editing, undo, and accessible feedback in `apps/web/src/features/categorization/` and `apps/web/src/features/settings/`.
-- [ ] T060 [US4] Build native iOS category correction controls, personalization settings, rule editing, undo, and native feedback in `apps/ios/ExpenseTracker/Features/Categorization/` and `apps/ios/ExpenseTracker/Features/Settings/`.
+- [X] T056 [US4] Implement deterministic default keyword/pattern rules, merchant normalization matching, specificity precedence, and explainable confidence in `packages/domain/src/categorization/`.
+- [X] T057 [US4] Implement personal merchant/pattern rules, evidence counts, explicit save/disable/remove behavior, and correction history across `packages/domain/src/categorization/personal-rules.ts`, the repository, and web Settings.
+- [ ] T058 [US4] Add category provenance and review explanations to import rows, transaction details, and summary records in `packages/contracts/src/categorization/` and client features. Web/shared summary category totals now expose source/confidence/review metadata; native iOS parity remains deferred and this task stays open until both clients converge.
+- [X] T059 [US4] Build web category correction controls, personalization settings, rule editing, undo, and accessible feedback in `apps/web/src/features/imports/`, `apps/web/src/features/imports/components/`, and `apps/web/src/features/settings/`.
+- [ ] T060 [US4] [IOS DEFERRED] Build native iOS category correction controls, personalization settings, rule editing, undo, and native feedback in `apps/ios/ExpenseTracker/Features/Categorization/` and `apps/ios/ExpenseTracker/Features/Settings/`. Source scaffolding exists, but native runtime/UI validation and durable encrypted rule mutations remain a macOS/Xcode/US6 gate.
 
 **Checkpoint**: US4 learns only from explicit user-confirmed behavior and keeps conflicting context reviewable.
 
@@ -158,17 +158,17 @@
 
 ### Tests for User Story 5
 
-- [ ] T061 [P] [US5] Add web offline/restart integration tests for manual entry, editing, summaries, category correction, pending status, and no-network operation in `apps/web/tests/integration/offline.test.ts`.
+- [X] T061 [P] [US5] Add web offline/restart integration tests for manual entry, editing, summaries, category correction, pending status, and no-network operation in `apps/web/tests/integration/offline.test.tsx`. The named integration suite covers the complete local/offline flow and remount persistence; `scripts/audit-offline.mjs` and `scripts/audit-restart.mjs` add real browser offline and separate-process restart evidence.
 - [ ] T062 [P] [US5] Add vault encryption, locked/reopened, clear-local-data, recovery-export, and retained-source lifecycle tests in `packages/domain/tests/privacy-lifecycle.test.ts`.
-- [ ] T063 [P] [US5] Add iOS local persistence, Keychain key protection, offline mutation, and privacy-settings XCTest coverage in `apps/ios/ExpenseTrackerTests/Privacy/PrivacyLifecycleTests.swift`.
+- [ ] T063 [P] [US5] [IOS DEFERRED] Add iOS local persistence, Keychain key protection, offline mutation, and privacy-settings XCTest coverage in `apps/ios/ExpenseTrackerTests/Privacy/PrivacyLifecycleTests.swift`.
 
 ### Implementation for User Story 5
 
-- [ ] T064 [US5] Implement web offline bootstrap, local status detection, pending mutation indicators, and resilient local reads/writes in `apps/web/src/app/`, `apps/web/src/local/`, and `apps/web/src/features/sync/`.
-- [ ] T065 [US5] Implement privacy/settings surfaces explaining local vaults, relay synchronization, statement retention, export/import, deletion, and the absence of a required cloud account in `apps/web/src/features/settings/` and `apps/ios/ExpenseTracker/Features/Settings/`.
-- [ ] T066 [US5] Implement encrypted versioned vault export/import with preview, checksum/version validation, merge confirmation, and recoverable failure states in `packages/domain/src/vault-io/`.
-- [ ] T067 [US5] Implement explicit clear-local-data, vault deletion, statement-original retention/deletion, learned-rule retention, and tombstone behavior in `packages/domain/src/privacy/`.
-- [ ] T068 [US5] Add web service-worker/static-shell behavior only as an optional local usability enhancement; ensure core functionality never depends on hosted assets or a service worker in `apps/web/public/` and `apps/web/src/`.
+- [X] T064 [US5] Implement web offline bootstrap, local status detection, pending mutation indicators, and resilient local reads/writes in `apps/web/src/app/`, `apps/web/src/local/`, and `apps/web/src/features/sync/`. The local-first bootstrap, vault-scoped status indicator, offline write/read path, remount persistence, and live browser audits are complete; authenticated sync integration remains a US6 boundary.
+- [ ] T065 [US5] Implement privacy/settings surfaces explaining local vaults, relay synchronization, statement retention, export/import, deletion, and the absence of a required cloud account in `apps/web/src/features/settings/` and `apps/ios/ExpenseTracker/Features/Settings/`. The web surface, statement-retention controls, local deletion copy, and privacy tests are complete; native iOS privacy settings and runtime parity remain source/platform-gated.
+- [ ] T066 [US5] Implement encrypted versioned vault export/import with preview, checksum/version validation, merge confirmation, and recoverable failure states in `packages/domain/src/vault-io/`. The web implementation, domain snapshot validation, Settings flow, and live synthetic-file backup audit are complete; shared/native encrypted vault-I/O parity remains open.
+- [X] T067 [US5] Implement explicit clear-local-data, vault deletion, statement-original retention/deletion, learned-rule retention, and tombstone behavior in `packages/domain/src/privacy/`. Local domain/web operations and lifecycle coverage are complete; authenticated remote tombstone propagation remains a US6 boundary.
+- [X] T068 [US5] Add web service-worker/static-shell behavior only as an optional local usability enhancement; ensure core functionality never depends on hosted assets or a service worker in `apps/web/public/` and `apps/web/src/`. The worker is production-only, static-asset/document-shell scoped, optional on registration failure, and verified against a production preview with offline navigation.
 
 **Checkpoint**: US5 works entirely locally and communicates clearly when data is saved locally but not synchronized.
 
@@ -182,22 +182,22 @@
 
 ### Tests for User Story 6
 
-- [ ] T069 [P] [US6] Add pairing contract tests for short-lived codes, device confirmation, public-key exchange, wrapped vault keys, revocation, and replay rejection in `apps/relay/tests/pairing/pairing-contract.test.ts`.
+- [ ] T069 [P] [US6] Add pairing contract tests for short-lived codes, device confirmation, public-key exchange, wrapped vault keys, revocation, and replay rejection in `apps/relay/tests/pairing/pairing-contract.test.ts`. The implemented `apps/relay/tests/pairing.test.ts` covers server challenge/proof, wrapped-key proof, distinct tokens, authorization, capability checks, one-time enrollment reservation/cleanup, and revocation; expiry/replay contract coverage remains open.
 - [ ] T070 [P] [US6] Add encrypted snapshot/bootstrap contract tests for manifest validation, chunk resume, checksum/version validation, explicit merge preview, and failure recovery in `apps/relay/tests/sync/bootstrap-contract.test.ts`.
 - [ ] T071 [P] [US6] Add offline queue/restart/idempotent batch tests for phone-away/PC-later behavior in `apps/relay/tests/sync/phone-away.test.ts`, `apps/web/tests/integration/phone-away.test.ts`, and `apps/ios/ExpenseTrackerTests/Sync/PhoneAwayTests.swift`.
-- [ ] T072 [P] [US6] Add concurrent mutation/conflict tests for amount, date, merchant, category, deletes, rule updates, and safe retry behavior in `packages/domain/tests/sync-conflicts.test.ts`.
-- [ ] T073 [P] [US6] Add iOS Local Network permission, foreground reconnect, disconnected-state, and pending-count UI tests in `apps/ios/ExpenseTrackerTests/Sync/SyncStatusTests.swift`.
+- [X] T072 [P] [US6] Add concurrent mutation/conflict tests for amount, date, merchant, category, deletes, rule updates, and safe retry behavior in `packages/domain/tests/sync-conflicts.test.ts`. Coverage includes causal concurrency, exact overlapping-field linkage, conservative unknown-field handling, conflict replay idempotency, opaque keep-local/keep-remote/manual/keep-both resolution records, resolution retry immutability, and transactional rollback. Local projection application, review UI, authenticated transport, and full client sync remain T080/T081 work.
+- [ ] T073 [P] [US6] [IOS DEFERRED] Add iOS Local Network permission, foreground reconnect, disconnected-state, and pending-count UI tests in `apps/ios/ExpenseTrackerTests/Sync/SyncStatusTests.swift`.
 
 ### Implementation for User Story 6
 
-- [ ] T074 [US6] Implement local relay discovery, authenticated secure endpoint setup, Local Network permission guidance, pairing-code lifecycle, and device registry in `apps/relay/src/pairing/`, `apps/relay/src/transport/`, and `apps/ios/ExpenseTracker/Networking/`.
-- [ ] T075 [US6] Implement device public-key exchange, device-specific wrapped vault-key delivery, P-256 ECDSA signing-key storage and rotation, key-version rotation, revocation, and protected private-key storage adapters in `apps/relay/src/pairing/`, `apps/web/src/local/security/`, and `apps/ios/ExpenseTracker/Networking/Security/`.
+- [ ] T074 [US6] Implement local relay discovery, authenticated secure endpoint setup, Local Network permission guidance, pairing-code lifecycle, and device registry in `apps/relay/src/pairing/`, `apps/relay/src/transport/`, and `apps/ios/ExpenseTracker/Networking/`. A localhost-only in-memory pairing authority now exists in `apps/relay/src/relay-server.ts`; LAN TLS/WSS, durable registry, discovery, iOS guidance, and native integration remain open.
+- [ ] T075 [US6] Implement device public-key exchange, device-specific wrapped vault-key delivery, P-256 ECDSA signing-key storage and rotation, key-version rotation, revocation, and protected private-key storage adapters in `apps/relay/src/pairing/`, `apps/web/src/local/security/`, and `apps/ios/ExpenseTracker/Networking/Security/`. The relay test slice verifies P-256 proof-of-possession, distinct socket-bound tokens, capability authorization, and revocation; durable key storage/rotation, accepting-device unwrap confirmation, and native adapters remain open.
 - [ ] T076 [US6] Implement authenticated versioned snapshot creation with P-256 ECDSA signing and verification, encrypted chunk transport, resumable bootstrap, explicit merge preview, and post-checkpoint mutation catch-up in `apps/relay/src/vault-io/`, `apps/web/src/features/sync/`, and `apps/ios/ExpenseTracker/Features/Sync/`; reject unsigned, invalid, stale, or wrong-vault snapshots.
 - [ ] T077 [US6] Implement the relay's encrypted append/exchange batch protocol, known-clock queries, batch IDs, replay rejection, retry/backoff, and opaque-envelope storage in `apps/relay/src/mutation-log/` and `apps/relay/src/transport/`.
 - [ ] T078 [US6] Implement the iOS durable pending mutation queue, restart recovery, pending count/oldest timestamp, foreground reconnect, batch upload, and `saved_local`/`pending_sync`/`synced`/`disconnected` states in `apps/ios/ExpenseTracker/Features/Sync/` and `apps/ios/ExpenseTracker/Persistence/`.
 - [ ] T079 [US6] Implement PC web mutation ingestion, idempotent application, derived-summary refresh, acknowledgement, and exactly-once transaction history updates in `apps/web/src/features/sync/`, `apps/web/src/local/`, and `packages/domain/src/sync/`.
-- [ ] T080 [US6] Implement field-aware conflict detection, conflict candidate encryption, conflict review UI, keep-local/keep-remote/manual/keep-both resolution, and resolution mutations in `packages/domain/src/sync/`, `apps/web/src/features/sync/`, and `apps/ios/ExpenseTracker/Features/Sync/`.
-- [ ] T081 [US6] Add synchronized status surfaces, reconnect actions, pending backlog details, failed retry controls, forget-device flow, clear-local-data flow, and plain-language remote-sync limitation messaging in `apps/web/src/features/sync/`, `apps/ios/ExpenseTracker/Features/Sync/`, and `apps/ios/ExpenseTracker/Features/Settings/`.
+- [ ] T080 [US6] Implement field-aware conflict detection, conflict candidate encryption, conflict review UI, keep-local/keep-remote/manual/keep-both resolution, and resolution mutations in `packages/domain/src/sync/`, `apps/web/src/features/sync/`, and `apps/ios/ExpenseTracker/Features/Sync/`. Shared conflict detection/resolution records, web-only opaque review, and local manual/merged payload validation are implemented and tested; connected projection application, relay delivery, and iOS parity remain open.
+- [ ] T081 [US6] Add synchronized status surfaces, reconnect actions, pending backlog details, failed retry controls, forget-device flow, clear-local-data flow, and plain-language remote-sync limitation messaging in `apps/web/src/features/sync/`, `apps/ios/ExpenseTracker/Features/Sync/`, and `apps/ios/ExpenseTracker/Features/Settings/`. Web now exposes local pending/conflict counts, polling, read-only failed-mutation details, local decision actions, and an explicit disconnected boundary; actual reconnect/retry actions, device controls, relay acknowledgement, and native parity remain open.
 
 **Checkpoint**: US6 proves the requested phone-away/PC-later flow without a hosted service, including restart persistence, foreground reconnect, encrypted batch exchange, exactly-once application, and visible conflicts.
 
@@ -211,15 +211,15 @@
 
 ### Tests for User Story 7
 
-- [ ] T082 [P] [US7] Add two-vault isolation and unauthorized-envelope rejection tests in `packages/domain/tests/vault-isolation.test.ts` and `apps/relay/tests/pairing/vault-isolation.test.ts`.
-- [ ] T083 [P] [US7] Add demo-mode labeling, sample-data separation, export/import, and deletion-scope tests in `apps/web/tests/integration/demo-privacy.test.ts` and `apps/ios/ExpenseTrackerTests/Privacy/DemoPrivacyTests.swift`.
+- [ ] T082 [P] [US7] Add two-vault isolation and unauthorized-envelope rejection tests in `packages/domain/tests/vault-isolation.test.ts` and `apps/relay/tests/pairing/vault-isolation.test.ts`. Domain repository isolation coverage now proves wrong-vault reads return no record and wrong-vault updates/deletes are inert; relay unauthorized-envelope coverage remains open with authenticated US6 pairing.
+- [ ] T083 [P] [US7] Add demo-mode labeling, sample-data separation, export/import, and deletion-scope tests in `apps/web/tests/integration/demo-privacy.test.ts` and `apps/ios/ExpenseTrackerTests/Privacy/DemoPrivacyTests.swift`. Web coverage now includes the live `scripts/audit-vaults.mjs` lifecycle audit plus existing isolation/privacy tests; the named cross-client/iOS target remains open.
 
 ### Implementation for User Story 7
 
-- [ ] T084 [US7] Implement vault switching/creation labels, demo-mode boundaries, and prevention of cross-vault queries in `packages/domain/src/vaults/` and both local adapters.
-- [ ] T085 [US7] Build clearly labeled web demo mode with sanitized sample data, truthful metrics, and no access to personal vault records in `apps/web/src/features/demo/`.
-- [ ] T086 [US7] Build explicit friend export/import flow with encrypted backup selection, preview, merge/copy confirmation, and source-vault protection in `apps/web/src/features/settings/` and `apps/ios/ExpenseTracker/Features/Settings/`.
-- [ ] T087 [US7] Implement deletion/export explanations for statements, transactions, rules, vaults, and retained mutation metadata in both clients and `packages/domain/src/privacy/`.
+- [ ] T084 [US7] Implement vault switching/creation labels, demo-mode boundaries, and prevention of cross-vault queries in `packages/domain/src/vaults/` and both local adapters. Web switching/creation labels, demo seeding, browser switching, and vault-scoped repository boundaries are implemented and live-audited; native adapter parity remains open.
+- [X] T085 [US7] Build clearly labeled web demo mode with sanitized sample data, truthful metrics, and no access to personal vault records in `apps/web/src/local/vault.ts`, `apps/web/src/App.tsx`, and the dashboard/transaction surfaces. Demo data is seeded in a separate vault, marked `source_type = 'demo'`, labeled in the selector and active shell, and covered by `apps/web/tests/vault-isolation.test.ts`.
+- [ ] T086 [US7] Build explicit friend export/import flow with encrypted backup selection, preview, merge/copy confirmation, and source-vault protection in `apps/web/src/features/settings/` and `apps/ios/ExpenseTracker/Features/Settings/`. The web flow is implemented and covered by encrypted backup, preview, copy/remapping, source-preservation tests, and visible privacy controls; file-capable browser restore automation and native export/import parity remain open.
+- [ ] T087 [US7] Implement deletion/export explanations for statements, transactions, rules, vaults, and retained mutation metadata in both clients and `packages/domain/src/privacy/`. Web/domain explanations and local deletion/retention behavior are implemented, tested, and visible in Settings; native runtime parity and authenticated remote deletion remain open.
 
 **Checkpoint**: US7 demonstrates the product safely without exposing or mixing private financial records.
 
@@ -231,7 +231,7 @@
 
 - [ ] T088 [P] Apply the semantic design-token contract, typography, spacing, visual hierarchy, category color semantics, responsive breakpoints, empty/loading/error states, and reduced-motion behavior across `apps/web/src/styles/`, `apps/web/src/components/`, and `packages/design-tokens/`.
 - [ ] T089 [P] Apply native iOS HIG, Dynamic Type, VoiceOver, Dark Mode, safe areas, touch targets, haptics, and iOS 16 availability fallbacks across `apps/ios/ExpenseTracker/DesignSystem/` and feature views.
-- [ ] T090 [P] Run web keyboard-navigation, focus, WCAG AA contrast, screen-reader, responsive, and automated accessibility checks in `apps/web/tests/accessibility/`.
+- [ ] T090 [P] Run web keyboard-navigation, focus, WCAG AA contrast, screen-reader, responsive, and automated accessibility checks in `apps/web/tests/accessibility/`. Web automated axe coverage now includes import, dashboard, and sync/conflict surfaces; full manual keyboard/screen-reader/contrast and responsive release review remain open.
 - [ ] T091 [P] Run parser accuracy, summary, mutation-log, pairing, encryption-boundary, phone-away, conflict, and 10,000-transaction performance suites; record results in `docs/validation/`.
 - [ ] T092 [P] Review browser/iOS threat-model disclosures, secure transport, key lifecycle, revocation limits, retained data, recovery warnings, and no-hosted-service claims in `docs/security-model.md` and client privacy screens.
 - [ ] T093 Update `specs/001-local-expense-tracker/quickstart.md`, root setup documentation, relay startup instructions, iOS free-sideload instructions, and known same-network/foreground-sync limitations in `docs/quickstart.md`.

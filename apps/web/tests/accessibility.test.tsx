@@ -46,7 +46,13 @@ function fakeDb(): Db {
     exec: async () => ({ changes: 0 }),
     all: async <T,>(sql: string) =>
       (sql.includes('FROM categories') ? categories.map(toRow) : []) as T[],
-    get: async () => undefined,
+    get: async <T,>(sql: string, params: unknown[] = []) => {
+      if (sql.includes('FROM categories')) {
+        const category = categories.find((candidate) => candidate.vault_id === params[0] && candidate.id === params[1]);
+        return category ? toRow(category) as T : undefined;
+      }
+      return undefined;
+    },
     transaction: async <T,>(fn: (db: Db) => Promise<T>) => fn(fakeDb()),
     close: async () => {},
   };

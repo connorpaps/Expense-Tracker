@@ -1,37 +1,47 @@
 /**
  * Relay entry point (T003). Run with `npm run start --workspace @expense-tracker/relay`
- * (or `npm run relay` from the repo root). Binds to localhost by default so no
- * other machine can reach the relay unless the user opts into LAN mode for iOS
- * pairing.
+ * (or `npm run relay` from the repo root). Secure mode is intentionally
+ * localhost-only until HTTPS/WSS certificate setup is implemented.
  */
 
-import { networkInterfaces } from 'node:os';
 import { createRelayServer } from './relay-server.js';
 
 interface RelayConfig {
   host: string;
   port: number;
   name: string;
+  secureMode: boolean;
+  enrollmentSecret?: string;
+  enrollmentVaultId?: string;
+  pairingTtlMs: number;
+  authorizationTtlMs: number;
 }
 
 function readConfig(): RelayConfig {
   const port = Number(process.env.RELAY_PORT ?? 8712);
-  const host = process.env.RELAY_HOST ?? '127.0.0.1';
+  const pairingTtlMs = Number(process.env.RELAY_PAIRING_TTL_MS ?? 5 * 60 * 1000);
+  const authorizationTtlMs = Number(process.env.RELAY_AUTH_TTL_MS ?? 30 * 24 * 60 * 60 * 1000);
+  const enrollmentSecret = process.env.RELAY_ENROLLMENT_SECRET;
+  const enrollmentVaultId = process.env.RELAY_ENROLLMENT_VAULT_ID;
+  if (!Number.isFinite(pairingTtlMs) || pairingTtlMs <= 0 || !Number.isFinite(authorizationTtlMs) || authorizationTtlMs <= 0) {
+    throw new Error('RELAY_PAIRING_TTL_MS and RELAY_AUTH_TTL_MS must be positive numbers.');
+  }
+  if (!enrollmentSecret) {
+    throw new Error('RELAY_ENROLLMENT_SECRET is required for secure first-device enrollment.');
+  }
+  if (!enrollmentVaultId?.trim()) {
+    throw new Error('RELAY_ENROLLMENT_VAULT_ID is required for vault-scoped first-device enrollment.');
+  }
   return {
-    host,
+    host: process.env.RELAY_HOST ?? '127.0.0.1',
     port: Number.isFinite(port) && port > 0 ? port : 8712,
     name: process.env.RELAY_NAME ?? 'Expense Tracker relay',
+    secureMode: true,
+    enrollmentSecret,
+    enrollmentVaultId,
+    pairingTtlMs,
+    authorizationTtlMs,
   };
-}
-
-function lanAddresses(): string[] {
-  const addresses: string[] = [];
-  for (const entries of Object.values(networkInterfaces())) {
-    for (const entry of entries ?? []) {
-      if (entry.family === 'IPv4' && !entry.internal) addresses.push(entry.address);
-    }
-  }
-  return addresses;
 }
 
 async function main(): Promise<void> {
@@ -47,12 +57,7 @@ async function main(): Promise<void> {
     ` ${config.name} (relay)`,
     ` Listening on http://${config.host}:${handle.port}`,
   ];
-  const lan = lanAddresses();
-  if (config.host === '0.0.0.0' && lan.length > 0) {
-    banner.push(` iOS pairing (same Wi-Fi): http://${lan[0]}:${handle.port}`);
-  } else {
-    banner.push(` Keeping iOS pairing on localhost only — set RELAY_HOST=0.0.0.0 to allow LAN pairing.`);
-  }
+  banner.push(` Secure pairing is localhost-only until HTTPS/WSS certificate setup is implemented.`);
   banner.push(` Health check: http://localhost:${handle.port}/health`);
   banner.push(`──────────────────────────────────────────────`);
   process.stdout.write(`${banner.join('\n')}\n`);

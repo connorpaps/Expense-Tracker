@@ -40,7 +40,7 @@ Visual acceptance requires: no clipped content at iPhone X width; no critical ac
 
 - Period control: week, month, custom.
 - Summary region: total spent, credits, net activity, transaction count.
-- Category breakdown with a chart plus an accessible text/table alternative.
+- Category breakdown with a chart plus an accessible text/table alternative, including category source/confidence/review explanations.
 - Recent transaction activity with a clear route to the full history.
 - Sync/offline status is always discoverable but not visually noisy.
 

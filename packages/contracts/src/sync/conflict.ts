@@ -7,13 +7,14 @@ import type { EntityType } from './mutation';
 
 export type ConflictResolution = 'keep_local' | 'keep_remote' | 'manual_edit' | 'keep_both';
 
-export type ConflictStatus = 'open' | 'resolved_local' | 'resolved_remote' | 'resolved_manual';
+export type ConflictStatus = 'open' | 'resolved_local' | 'resolved_remote' | 'resolved_manual' | 'resolved_both';
 
 export interface ConflictRecordDto {
   conflict_id: string;
   vault_id: string;
   entity_type: EntityType;
   entity_id: string;
+  /** `*` means one mutation omitted field metadata, so the overlap is intentionally treated as unknown/all fields. */
   conflicting_fields: string[];
   /** Encrypted-or-local reference to the local candidate values. */
   local_candidate: string;

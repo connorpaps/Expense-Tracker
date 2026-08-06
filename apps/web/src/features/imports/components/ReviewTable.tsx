@@ -5,23 +5,27 @@ import { StatusBadge } from './StatusBadge';
 
 interface ReviewTableProps {
   preview: ImportPreviewDto;
-  categories: Array<{ id: string; name: string }>;
+  categories: Array<{ id: string; name: string; is_active?: boolean }>;
   decisions: Map<string, UserDecision>;
+  corrections?: Map<string, { categoryId: string; rememberRule: boolean }>;
   attentionOnly: boolean;
   onToggleAttention: () => void;
   onDecision: (rowId: string, decision: 'accept' | 'exclude') => void;
+  onCategoryCorrection?: (rowId: string, categoryId: string, rememberRule: boolean) => void;
 }
 
 export function ReviewTable({
   preview,
   categories,
   decisions,
+  corrections,
   attentionOnly,
   onToggleAttention,
   onDecision,
+  onCategoryCorrection,
 }: ReviewTableProps) {
-  const categoryName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? 'No category';
-
+  const activeCorrections = corrections ?? new Map<string, { categoryId: string; rememberRule: boolean }>();
+  const applyCategoryCorrection = onCategoryCorrection ?? (() => {});
   const needsAttention = (row: ImportRowReviewDto) =>
     row.row_status === 'error' || row.row_status === 'duplicate_candidate' || row.diagnostics.length > 0;
 
@@ -69,6 +73,8 @@ export function ReviewTable({
           <tbody>
             {visibleRows.map((row) => {
               const decision = decisions.get(row.id) ?? row.user_decision;
+              const correction = activeCorrections.get(row.id);
+              const selectedCategoryId = correction?.categoryId ?? row.suggested_category_id ?? '';
               return (
                 <tr key={row.id} data-row-status={row.row_status}>
                   <td>
@@ -91,11 +97,29 @@ export function ReviewTable({
                   </td>
                   <td>
                     <span className="review__category">
-                      {categoryName(row.suggested_category_id)}
-                      {row.category_source && row.category_confidence && (
-                        <span className="review__provenance">
-                          {CATEGORY_SOURCE_LABELS[row.category_source]} · {CATEGORY_CONFIDENCE_LABELS[row.category_confidence]}
-                        </span>
+                      <select
+                        aria-label={`Category for ${row.parsed_merchant ?? 'row'}`}
+                        value={selectedCategoryId}
+                        onChange={(event) => applyCategoryCorrection(row.id, event.target.value, correction?.rememberRule ?? false)}
+                      >
+                        <option value="">Choose a category</option>
+                        {categories.filter((category) => category.is_active !== false).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                      </select>
+                      {correction ? (
+                        <span className="review__provenance">{CATEGORY_SOURCE_LABELS.user} · {CATEGORY_CONFIDENCE_LABELS.confirmed}</span>
+                      ) : row.explanation?.detail ? <span className="review__provenance">{row.explanation.detail}</span> : row.category_source && row.category_confidence && (
+                        <span className="review__provenance">{CATEGORY_SOURCE_LABELS[row.category_source]} · {CATEGORY_CONFIDENCE_LABELS[row.category_confidence]}</span>
+                      )}
+                      {(correction || decision === 'accept') && (
+                        <label className="review__remember">
+                          <input
+                            type="checkbox"
+                            checked={correction?.rememberRule ?? false}
+                            disabled={!correction || !selectedCategoryId}
+                            onChange={(event) => applyCategoryCorrection(row.id, selectedCategoryId, event.target.checked)}
+                          />
+                          Remember this merchant
+                        </label>
                       )}
                     </span>
                   </td>

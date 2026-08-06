@@ -3,6 +3,7 @@ import SwiftUI
 struct ManualEntryView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var store: InMemoryVaultStore
+    @ObservedObject var pendingQueue: PendingMutationQueue
     let editing: ExpenseTransaction?
 
     @State private var merchant: String
@@ -12,9 +13,11 @@ struct ManualEntryView: View {
     @State private var occurredOn: Date
     @State private var validationMessage: String?
     @State private var saved = false
+    @State private var rememberRule = false
 
-    init(store: InMemoryVaultStore, editing: ExpenseTransaction? = nil) {
+    init(store: InMemoryVaultStore, pendingQueue: PendingMutationQueue, editing: ExpenseTransaction? = nil) {
         self.store = store
+        self.pendingQueue = pendingQueue
         self.editing = editing
         _merchant = State(initialValue: editing?.merchant ?? "")
         _amount = State(initialValue: editing.map { String(Double($0.amount.minorUnits) / 100) } ?? "")
@@ -35,6 +38,10 @@ struct ManualEntryView: View {
                 DatePicker("Date", selection: $occurredOn, displayedComponents: .date)
                 TextField("Category", text: $category)
                     .accessibilityHint("Required")
+                if editing != nil {
+                    Toggle("Remember this merchant's category", isOn: $rememberRule)
+                        .accessibilityHint("Applies this correction to future imports")
+                }
                 TextField("Note", text: $note, axis: .vertical)
                     .lineLimit(3...6)
             } header: {
@@ -75,8 +82,13 @@ struct ManualEntryView: View {
             validationMessage = "Enter a merchant."
             return
         }
-        guard let dollars = Double(amount), dollars != 0 else {
+        guard let dollars = Double(amount), dollars.isFinite, dollars != 0 else {
             validationMessage = "Enter a non-zero amount."
+            return
+        }
+        let cleanCategory = category.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanCategory.isEmpty else {
+            validationMessage = "Enter a category."
             return
         }
         let transaction = ExpenseTransaction(
@@ -84,12 +96,21 @@ struct ManualEntryView: View {
             occurredOn: occurredOn,
             merchant: cleanMerchant,
             amount: Money(minorUnits: Int64((dollars * 100).rounded())),
-            category: category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Other" : category,
+            category: cleanCategory,
             note: note.isEmpty ? nil : note,
             source: editing?.source ?? "manual"
         )
         do {
             if editing == nil { try store.insert(transaction) } else { try store.update(transaction) }
+            // The native queue currently persists non-sensitive metadata only;
+            // US6 will connect this correction to encrypted mutation envelopes.
+            if editing != nil && rememberRule && editing?.category != cleanCategory {
+                pendingQueue.enqueue(PendingMutation(entityId: transaction.id, operation: "category-correction"))
+            }
+            pendingQueue.enqueue(PendingMutation(
+                entityId: transaction.id,
+                operation: editing == nil ? "create" : "update"
+            ))
             saved = true
             dismiss()
         } catch {

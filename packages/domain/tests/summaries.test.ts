@@ -51,8 +51,26 @@ describe('Spending summaries (T010)', () => {
     ];
     const summary = computeSummary(transactions, range);
     expect(summary.categoryTotals).toEqual([
-      { categoryId: 'cat-food', spentMinor: -10600, count: 2 },
-      { categoryId: 'cat-transport', spentMinor: -1200, count: 1 },
+      {
+        categoryId: 'cat-food',
+        spentMinor: -10600,
+        count: 2,
+        provenance: {
+          sources: ['default_rule'],
+          confidences: ['high'],
+          reviewCount: 0,
+        },
+      },
+      {
+        categoryId: 'cat-transport',
+        spentMinor: -1200,
+        count: 1,
+        provenance: {
+          sources: ['default_rule'],
+          confidences: ['high'],
+          reviewCount: 0,
+        },
+      },
     ]);
   });
 
@@ -76,6 +94,41 @@ describe('Spending summaries (T010)', () => {
     const summary = computeSummary(transactions, range, { categoryId: 'cat-transport' });
     expect(summary.transactionCount).toBe(1);
     expect(summary.totalSpendMinor).toBe(-1200);
+  });
+
+  it('exposes mixed category provenance and review count in summaries', () => {
+    const transactions = [
+      tx({ id: 'suggested', occurred_on: '2026-08-03', amount_minor: -2500, merchant_display: 'Cafe', category_source: 'default_rule', category_confidence: 'medium' }),
+      tx({ id: 'confirmed', occurred_on: '2026-08-04', amount_minor: -1000, merchant_display: 'Cafe 2', category_source: 'user', category_confidence: 'confirmed', review_state: 'confirmed' }),
+      tx({ id: 'review', occurred_on: '2026-08-05', amount_minor: -500, merchant_display: 'Cafe 3', category_source: null, category_confidence: null, review_state: 'needs_review' }),
+    ];
+    expect(computeSummary(transactions, range).categoryTotals[0]?.provenance).toEqual({
+      sources: ['default_rule', 'manual_required', 'user'],
+      confidences: ['confirmed', 'medium', 'unresolved'],
+      reviewCount: 1,
+    });
+  });
+
+  it('filters by explicit currency without mixing arithmetic', () => {
+    const transactions = [
+      tx({ id: 'usd', occurred_on: '2026-08-03', amount_minor: -2500, merchant_display: 'USD Cafe', currency: 'USD' }),
+      tx({ id: 'eur', occurred_on: '2026-08-04', amount_minor: -1900, merchant_display: 'EUR Cafe', currency: 'EUR' }),
+    ];
+    const summary = computeSummary(transactions, range, { currency: 'USD' });
+    expect(summary.transactionCount).toBe(1);
+    expect(summary.totalSpendMinor).toBe(-2500);
+  });
+
+  it('can include expenses only when requested', () => {
+    const transactions = [
+      tx({ id: 'spend', occurred_on: '2026-08-03', amount_minor: -2500, merchant_display: 'Cafe' }),
+      tx({ id: 'credit', occurred_on: '2026-08-04', amount_minor: 1000, merchant_display: 'Refund' }),
+    ];
+    const summary = computeSummary(transactions, range, { expensesOnly: true });
+    expect(summary.transactionCount).toBe(1);
+    expect(summary.totalSpendMinor).toBe(-2500);
+    expect(summary.totalCreditsMinor).toBe(0);
+    expect(summary.netActivityMinor).toBe(-2500);
   });
 
   it('returns an empty (not misleading) summary for empty periods', () => {
