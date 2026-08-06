@@ -979,3 +979,66 @@ Raw per-save events, if the optional watcher is running, go to `docs/activity-wa
   - scripts/audit-vaults.mjs
   - specs/001-local-expense-tracker/contracts/design-system.md
   - specs/001-local-expense-tracker/tasks.md
+
+## 2026-08-06 19:00 — `b3efa55`
+**feat: complete local expense tracker web and sync hardening**
+
+  - apps/ios/ExpenseTracker/Features/Settings/SettingsView.swift
+  - apps/relay/src/relay-server.ts
+  - apps/relay/tests/relay.test.ts
+  - apps/web/src/App.tsx
+  - apps/web/src/features/dashboard/DashboardPage.tsx
+  - apps/web/src/features/imports/ImportPage.tsx
+  - apps/web/src/features/imports/components/ImportDropzone.tsx
+  - apps/web/src/features/imports/components/ReviewTable.tsx
+  - apps/web/src/features/imports/import-pipeline.ts
+  - apps/web/src/features/imports/parse-file.ts
+  - apps/web/src/features/settings/SettingsPage.tsx
+  - apps/web/src/features/sync/SyncPage.tsx
+  - apps/web/src/features/transactions/TransactionsPage.tsx
+  - apps/web/src/local/export.ts
+  - apps/web/src/local/index.ts
+  - apps/web/src/local/security.ts
+  - apps/web/src/local/sync/index.ts
+  - apps/web/src/local/sync/relay-client.ts
+  - apps/web/src/local/sync/sync-service.ts
+  - apps/web/src/local/vault.ts
+  - apps/web/src/main.tsx
+  - apps/web/src/styles/global.css
+  - apps/web/tests/accessibility.test.tsx
+  - apps/web/tests/accessibility/categorization.test.tsx
+  - apps/web/tests/import-contract.test.ts
+  - apps/web/tests/integration/dashboard.test.tsx
+  - apps/web/tests/integration/manual-entry.test.tsx
+  - apps/web/tests/integration/offline.test.tsx
+  - apps/web/tests/integration/sync.test.tsx
+  - apps/web/tests/pdf-contract.test.ts
+  - apps/web/tests/static-shell.test.ts
+  - apps/web/tests/sync-service-compatibility.test.ts
+  - apps/web/tests/sync-service.test.ts
+  - apps/web/tests/vault-isolation.test.ts
+  - aug6-categorization-plan.md
+  - aug6-non-ios-completion-plan.md
+  - aug6-plan.md
+  - docs/lessons-learned.md
+  - handoff.md
+  - knowledge.md
+  - packages/contracts/src/sync/mutation.ts
+  - packages/domain/src/categorization/default-rules.ts
+  - packages/domain/src/categorization/normalize.ts
+  - packages/domain/src/categorization/suggest.ts
+  - packages/domain/src/entities/category.ts
+  - packages/domain/src/imports/commit.ts
+  - packages/domain/src/storage/repository.ts
+  - packages/domain/src/storage/schema.ts
+  - packages/domain/src/summaries/summaries.ts
+  - packages/domain/src/sync/mutation-log.ts
+  - packages/domain/src/sync/projection.ts
+  - packages/domain/src/vault-io/vault-io.ts
+  - packages/domain/tests/categorization.test.ts
+  - packages/domain/tests/imports.test.ts
+  - packages/domain/tests/storage.test.ts
+  - packages/domain/tests/vault-io.test.ts
+  - packages/fixtures/demo/demo-data.json
+  - scripts/audit-browser.mjs
+  - specs/001-local-expense-tracker/quickstart.md
