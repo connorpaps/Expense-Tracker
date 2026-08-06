@@ -404,7 +404,6 @@ export function SyncPage({ db, vaultId, syncConfig, remoteMutationDecoder }: Syn
   return (
     <section className="page" aria-labelledby="sync-heading">
       <header className="page__header">
-        <p className="panel__eyebrow">LOCAL SYNC BOUNDARY</p>
         <h1 id="sync-heading">Sync and review</h1>
         <p className="page__subtitle">
           Review local changes and resolve encrypted conflict records without exposing their
@@ -426,7 +425,6 @@ export function SyncPage({ db, vaultId, syncConfig, remoteMutationDecoder }: Syn
       <section className="panel sync-transport" aria-labelledby="sync-transport-heading">
         <div className="section-heading">
           <div>
-            <p className="panel__eyebrow">FOREGROUND EXCHANGE</p>
             <h2 id="sync-transport-heading">
               {syncConfig ? 'Relay connection' : 'Local-only mode'}
             </h2>
@@ -506,7 +504,6 @@ export function SyncPage({ db, vaultId, syncConfig, remoteMutationDecoder }: Syn
       </div>
       {failedMutations.length > 0 && (
         <section className="panel" aria-labelledby="failed-mutations-heading">
-          <p className="panel__eyebrow">LOCAL RETRY DETAILS</p>
           <h2 id="failed-mutations-heading">Failures waiting locally</h2>
           <p>
             Failed records were not acknowledged by a relay. Local-only records are intentionally
@@ -531,7 +528,6 @@ export function SyncPage({ db, vaultId, syncConfig, remoteMutationDecoder }: Syn
       )}
 
       <section className="panel sync-boundary" aria-labelledby="sync-boundary-heading">
-        <p className="panel__eyebrow">WHAT THIS MEANS</p>
         <h2 id="sync-boundary-heading">Saved here, not sent yet</h2>
         <p>
           Local entries and resolution choices are durable encrypted mutations in this browser. This
@@ -549,7 +545,6 @@ export function SyncPage({ db, vaultId, syncConfig, remoteMutationDecoder }: Syn
       <section className="panel" aria-labelledby="conflicts-heading">
         <div className="section-heading">
           <div>
-            <p className="panel__eyebrow">CONFLICT REVIEW</p>
             <h2 id="conflicts-heading">Open conflicts</h2>
           </div>
           <span className="section-heading__meta">{conflicts.length} open</span>

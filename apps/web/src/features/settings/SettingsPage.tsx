@@ -845,7 +845,6 @@ export function SettingsPage({ db, vaultId, onVaultChange }: SettingsPageProps) 
 
       <div className="page__body">
         <section className="panel" aria-labelledby="local-vault-heading">
-          <p className="panel__eyebrow">LOCAL VAULT</p>
           <h2 id="local-vault-heading">Your data stays on this device</h2>
           <p>
             Statements are parsed in this browser and saved to its local SQLite vault. No account,
@@ -885,7 +884,6 @@ export function SettingsPage({ db, vaultId, onVaultChange }: SettingsPageProps) 
         </section>
 
         <section className="panel" aria-labelledby="currency-heading">
-          <p className="panel__eyebrow">DISPLAY PREFERENCE</p>
           <h2 id="currency-heading">Default currency</h2>
           <p>
             New manual entries and imports without a currency use this choice. Existing records
@@ -911,7 +909,6 @@ export function SettingsPage({ db, vaultId, onVaultChange }: SettingsPageProps) 
         <section className="panel" aria-labelledby="category-management-heading">
           <div className="section-heading">
             <div>
-              <p className="panel__eyebrow">YOUR VOCABULARY</p>
               <h2 id="category-management-heading">Categories</h2>
             </div>
             <span className="section-heading__meta">
@@ -1074,7 +1071,6 @@ export function SettingsPage({ db, vaultId, onVaultChange }: SettingsPageProps) 
         <section className="panel" aria-labelledby="rules-heading">
           <div className="section-heading">
             <div>
-              <p className="panel__eyebrow">LEARNED LOCALLY</p>
               <h2 id="rules-heading">Personal merchant rules</h2>
             </div>
             <span className="section-heading__meta">
@@ -1212,7 +1208,6 @@ export function SettingsPage({ db, vaultId, onVaultChange }: SettingsPageProps) 
         </section>
 
         <section className="panel" aria-labelledby="backup-heading">
-          <p className="panel__eyebrow">PRIVATE BACKUP</p>
           <h2 id="backup-heading">Export or restore this vault</h2>
           <p>
             Backups are encrypted in this browser with a password you choose. The export contains
@@ -1354,7 +1349,6 @@ export function SettingsPage({ db, vaultId, onVaultChange }: SettingsPageProps) 
         </section>
 
         <section className="panel" aria-labelledby="retention-heading">
-          <p className="panel__eyebrow">RETENTION CONTROLS</p>
           <h2 id="retention-heading">Remove imported data</h2>
           <p>
             Statement originals are optional and can be removed without changing normalized history.
@@ -1397,7 +1391,6 @@ export function SettingsPage({ db, vaultId, onVaultChange }: SettingsPageProps) 
         </section>
 
         <section className="panel panel--error" aria-labelledby="danger-zone-heading">
-          <p className="panel__eyebrow">DANGER ZONE</p>
           <h2 id="danger-zone-heading">Clear this browser</h2>
           <p>
             Delete every local vault, statement import, transaction, rule, pairing record, and

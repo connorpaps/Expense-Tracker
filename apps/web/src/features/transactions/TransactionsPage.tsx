@@ -374,7 +374,6 @@ export function TransactionsPage({ db, vaultId, defaultCurrency = 'CAD' }: Trans
         >
           <div className="transaction-form__heading">
             <div>
-              <p className="panel__eyebrow">{editing ? 'EDIT RECORD' : 'LOCAL ENTRY'}</p>
               <h2>{editing ? 'Edit transaction' : 'Add an expense'}</h2>
             </div>
             <button type="button" className="button button--ghost" onClick={resetForm}>

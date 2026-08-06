@@ -241,7 +241,6 @@ export function DashboardPage({ db, vaultId, defaultCurrency = 'CAD' }: Dashboar
               <section className="panel category-breakdown" aria-labelledby="category-heading">
                 <div className="section-heading">
                   <div>
-                    <p className="panel__eyebrow">WHERE IT WENT</p>
                     <h2 id="category-heading">Category breakdown</h2>
                   </div>
                   <span className="section-heading__meta">
@@ -288,7 +287,6 @@ export function DashboardPage({ db, vaultId, defaultCurrency = 'CAD' }: Dashboar
               <section className="panel recent-panel" aria-labelledby="recent-heading">
                 <div className="section-heading">
                   <div>
-                    <p className="panel__eyebrow">THE LATEST</p>
                     <h2 id="recent-heading">Recent activity</h2>
                   </div>
                   <Link to="/transactions">See all</Link>

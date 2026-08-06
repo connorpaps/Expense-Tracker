@@ -83,7 +83,6 @@ export function App() {
     return (
       <main className="app-loading app-loading--error">
         <section className="panel panel--error" role="alert" aria-labelledby="vault-error-heading">
-          <p className="panel__eyebrow">LOCAL VAULT</p>
           <h1 id="vault-error-heading">Storage is unavailable</h1>
           <p>{bootstrapError ?? 'The local vault did not return a usable session.'}</p>
           <button type="button" className="button button--primary" onClick={() => window.location.reload()}>
@@ -111,10 +110,14 @@ export function App() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <nav className="app-nav" aria-label="Primary">
         <div className="app-nav__brand">
           <span className="app-nav__mark" aria-hidden="true">
-            ◆
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4 18 12 4l8 14H4Z" />
+              <path d="m8 15 4-7 4 7" />
+            </svg>
           </span>
           Expense Tracker
         </div>
@@ -141,7 +144,7 @@ export function App() {
           ))}
         </ul>
       </nav>
-      <main className="app-content">
+      <main id="main-content" className="app-content">
         <Routes>
           <Route path="/" element={<DashboardPage db={session.db} vaultId={session.vaultId} defaultCurrency={session.defaultCurrency} />} />
           <Route path="/transactions" element={<TransactionsPage db={session.db} vaultId={session.vaultId} defaultCurrency={session.defaultCurrency} />} />
