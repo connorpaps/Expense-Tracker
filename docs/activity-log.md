@@ -1059,3 +1059,19 @@ Raw per-save events, if the optional watcher is running, go to `docs/activity-wa
   - apps/web/src/features/transactions/TransactionsPage.tsx
   - apps/web/src/styles/global.css
   - apps/web/src/styles/tokens.css
+
+## 2026-08-06 20:23 — `2138151`
+**feat(web): refresh palette for portfolio presentation**
+
+  - DESIGN.md
+  - PRODUCT.md
+  - apps/web/.impeccable/surfaces/apps-web-src-app-tsx.md
+  - apps/web/index.html
+  - apps/web/src/main.tsx
+  - apps/web/src/styles/global.css
+  - apps/web/src/styles/palette.css
+  - apps/web/src/styles/tokens.css
+  - packages/design-tokens/README.md
+  - packages/design-tokens/src/web/tokens.ts
+  - packages/design-tokens/tests/tokens.test.ts
+  - specs/001-local-expense-tracker/contracts/design-system.md
