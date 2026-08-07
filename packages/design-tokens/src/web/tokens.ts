@@ -1,7 +1,7 @@
 /**
  * Semantic design tokens (T008), per
- * specs/001-local-expense-tracker/contracts/design-system.md: cool ink neutrals
- * with one electric-copper accent, 12/16/24px spacing rhythm, 14/18/24px radius
+ * specs/001-local-expense-tracker/contracts/design-system.md: mineral neutrals
+ * with one evergreen accent, 12/16/24px spacing rhythm, 14/18/24px radius
  * tiers, and explicit semantic state tokens.
  */
 
@@ -39,57 +39,57 @@ export function contrastRatio(a: string, b: string): number {
 }
 
 export const WEB_COLORS = {
-  // Cool ink neutrals (light theme)
-  ink950: '#14161B',
-  ink900: '#1C2027',
-  ink800: '#262B34',
-  ink700: '#333B47',
-  ink600: '#4B5565',
-  ink500: '#6B7484',
-  ink400: '#9AA3B0',
-  ink300: '#C6CCD6',
-  ink200: '#E1E5EB',
-  ink100: '#EDF0F4',
-  ink50: '#F7F8FA',
-  // Electric copper accent
-  copper700: '#8F4A1B',
-  copper600: '#A8521D',
-  copper500: '#C45E22',
-  copper400: '#D97B3D',
-  copper300: '#E8A36F',
-  copper100: '#F7E9DD',
+  // Mineral charcoal neutrals (light theme)
+  ink950: '#202622',
+  ink900: '#2B332D',
+  ink800: '#374239',
+  ink700: '#465249',
+  ink600: '#4F5A52',
+  ink500: '#667268',
+  ink400: '#9AA69B',
+  ink300: '#C5CEC5',
+  ink200: '#D5D2C8',
+  ink100: '#E8E4D9',
+  ink50: '#F3EFE7',
+  // Evergreen accent
+  cedar700: '#174A40',
+  cedar600: '#1F6657',
+  cedar500: '#2F806B',
+  cedar400: '#6FC2A9',
+  cedar300: '#A8DDC9',
+  cedar100: '#DCEFE7',
   // Semantic states
-  positive700: '#1B5E20',
-  positive500: '#2E7D32',
-  positive100: '#E6F4E8',
-  warning700: '#8A5300',
-  warning500: '#B45309',
-  warning100: '#FBF1DC',
-  destructive700: '#A0201A',
-  destructive500: '#B3261E',
-  destructive100: '#FBE7E6',
-  focus: '#2F6FED',
-  review700: '#8A5300',
-  review500: '#B45309',
-  review100: '#FBF1DC',
+  positive700: '#21563F',
+  positive500: '#2F7058',
+  positive100: '#E1F0E8',
+  warning700: '#815414',
+  warning500: '#A86F1B',
+  warning100: '#F7ECCE',
+  destructive700: '#87322D',
+  destructive500: '#A43D36',
+  destructive100: '#F8E1DE',
+  focus: '#8A5A12',
+  review700: '#62652E',
+  review500: '#7E823D',
+  review100: '#EEF0D8',
 } as const;
 
 export const SEMANTIC_TOKENS = {
   background: WEB_COLORS.ink50,
-  elevated: '#FFFFFF',
+  elevated: '#FCFAF5',
   primaryText: WEB_COLORS.ink950,
   secondaryText: WEB_COLORS.ink600,
-  mutedText: '#7C8594',
-  accent: WEB_COLORS.copper600,
-  accentHover: WEB_COLORS.copper700,
-  accentActive: WEB_COLORS.copper700,
+  mutedText: '#626D63',
+  accent: WEB_COLORS.cedar600,
+  accentHover: WEB_COLORS.cedar700,
+  accentActive: WEB_COLORS.cedar700,
   positive: WEB_COLORS.positive500,
-  warning: WEB_COLORS.warning500,
+  warning: WEB_COLORS.warning700,
   destructive: WEB_COLORS.destructive500,
   focus: WEB_COLORS.focus,
-  reviewNeeded: WEB_COLORS.review500,
-  onAccent: '#FFFFFF',
-  onDark: '#FFFFFF',
+  reviewNeeded: WEB_COLORS.review700,
+  onAccent: '#FCFAF5',
+  onDark: '#FCFAF5',
   onLight: WEB_COLORS.ink950,
 } as const;
 
@@ -139,14 +139,14 @@ export const MOTION = {
   curve: 'cubic-bezier(0.4, 0, 0.2, 1)',
 } as const;
 
-/** Category semantic colors that remain distinguishable without color alone. */
+/** Category semantic colors that remain distinguishable without color alone. Legacy token names remain for vault compatibility. */
 export const CATEGORY_COLORS = {
-  copper: WEB_COLORS.copper500,
+  cedar: WEB_COLORS.cedar500,
   slate: WEB_COLORS.ink600,
-  violet: '#7C5CD6',
-  sky: '#2E86C1',
-  rose: '#C44B6E',
-  emerald: '#2F9E63',
+  violet: '#7E823D',
+  sky: '#2F806B',
+  rose: '#A43D36',
+  emerald: '#2F7058',
   amber: WEB_COLORS.warning500,
   green: WEB_COLORS.positive500,
   gray: WEB_COLORS.ink400,

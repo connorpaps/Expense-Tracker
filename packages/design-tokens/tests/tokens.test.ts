@@ -47,10 +47,9 @@ describe('Design tokens (T008)', () => {
   });
 
   it('keeps muted text readable only as secondary, never for critical data', () => {
-    // Muted is below AA for body text by design; primary/secondary carry meaning.
+    // Muted metadata remains readable at normal text sizes, while primary/secondary carry the strongest meaning.
     const mutedOnBg = contrastRatio(SEMANTIC_TOKENS.mutedText, SEMANTIC_TOKENS.background);
-    expect(mutedOnBg).toBeGreaterThanOrEqual(3);
-    expect(mutedOnBg).toBeLessThan(4.5);
+    expect(mutedOnBg).toBeGreaterThanOrEqual(4.5);
   });
 
   it('uses the documented spacing rhythm and radius tiers', () => {
@@ -59,9 +58,9 @@ describe('Design tokens (T008)', () => {
   });
 
   it('uses a single accent family', () => {
-    expect(WEB_COLORS.copper400.startsWith('#')).toBe(true);
-    expect(SEMANTIC_TOKENS.accent).toBe(WEB_COLORS.copper600);
-    expect(SEMANTIC_TOKENS.accentHover).toBe(WEB_COLORS.copper700);
+    expect(WEB_COLORS.cedar400.startsWith('#')).toBe(true);
+    expect(SEMANTIC_TOKENS.accent).toBe(WEB_COLORS.cedar600);
+    expect(SEMANTIC_TOKENS.accentHover).toBe(WEB_COLORS.cedar700);
   });
 
   it('parses hex colors correctly', () => {
@@ -81,7 +80,7 @@ describe('Design tokens (T008)', () => {
   it('emits iOS Swift tokens matching the web vocabulary', () => {
     const swift = iosDesignTokensSwift();
     expect(swift).toContain('enum ExpenseTrackerDesignTokens');
-    expect(swift).toContain('static let Accent = Color(hex: 0xA8521D)');
+    expect(swift).toContain('static let Accent = Color(hex: 0x1F6657)');
     expect(swift).toContain('static let touchTargetMinimum = CGFloat(44)');
     expect(swift).toContain('init(hex: UInt32, opacity: Double = 1)');
   });

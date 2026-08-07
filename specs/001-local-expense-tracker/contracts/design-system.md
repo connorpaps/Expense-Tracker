@@ -13,7 +13,7 @@ Reading this as: a daily-use personal finance product for privacy-conscious peop
 ## Shared tokens and invariants
 
 - Semantic tokens: background, elevated surface, primary text, secondary text, muted text, accent, positive, warning, destructive, focus, and review-needed.
-- Web direction: cool ink neutrals with one electric-copper accent, a humanist display face paired with a highly legible system sans, 12px/16px/24px spacing rhythm, and 14px/18px/24px radius tiers. The exact font files and token values are selected in the implementation design pass and must be recorded rather than improvised per screen.
+- Web direction: modern Cedar Ledger surfaces with charcoal structure, evergreen action, saffron highlight, a humanist display face paired with a highly legible system sans, 12px/16px/24px spacing rhythm, and 14px/18px/24px radius tiers. The exact font files and token values are selected in the implementation design pass and must be recorded rather than improvised per screen. The iOS client retains native semantic system colors rather than copying the web palette.
 - One accent family across the web product; category colors are semantic and must remain distinguishable without color alone.
 - All text and controls meet WCAG AA contrast targets on web and platform accessibility contrast expectations on iOS.
 - All critical interactions have loading, success, warning, error, empty, offline, and conflict states.

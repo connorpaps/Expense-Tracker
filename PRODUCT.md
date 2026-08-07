@@ -38,7 +38,7 @@ The primary web context is a desktop or laptop workbench used for statement revi
 
 ## Brand Commitments
 
-The product name is Expense Tracker. The redesign should serve both daily personal use and portfolio presentation without turning the product into a marketing site. The confirmed visual direction for the web redesign is an Editorial Instrument: composed, distinctive, practical, data-literate, and trustworthy rather than generic fintech or decorative SaaS.
+The product name is Expense Tracker. The redesign should serve both daily personal use and portfolio presentation without turning the product into a marketing site. The confirmed visual direction for the web redesign is a Cedar Ledger: modern, warm-neutral, distinctive, practical, data-literate, and trustworthy rather than a blue enterprise console, pink/purple editorial treatment, orange-led treatment, or decorative SaaS.
 
 ## Evidence on Hand
 
@@ -48,7 +48,7 @@ The product name is Expense Tracker. The redesign should serve both daily person
 - Web tests and accessibility coverage: `apps/web/tests/`
 - Current visual tokens: `apps/web/src/styles/tokens.css`, `packages/design-tokens/src/web/tokens.ts`
 - Current app uses a custom React/Vite/CSS implementation with no external component library.
-- Revert point before redesign: Git tag `pre-redesign-2026-08-06`.
+- Revert points: Git tag `pre-redesign-2026-08-06` for the pre-redesign app; Git tag `pre-catalog-revamp-2026-08-06` for the prior Editorial Instrument state. The rejected Catalog Instrument work is preserved in local stash `rejected-catalog-revamp-before-palette-redesign-2026-08-06`.
 - The repository contains no approved customer logos, testimonials, commercial metrics, or portfolio claims. Future work must not fabricate them.
 
 ## Product Principles

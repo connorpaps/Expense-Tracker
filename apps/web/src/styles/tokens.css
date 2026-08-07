@@ -7,25 +7,26 @@
 }
 
 :root {
-  --color-background: #eef0ed;
-  --color-elevated: #fbfaf7;
-  --color-primary-text: #171c24;
-  --color-secondary-text: #46515e;
-  --color-muted-text: #6e7882;
-  --color-accent: #b45a25;
-  --color-accent-hover: #8f411b;
-  --color-accent-active: #8f411b;    --color-positive: #8fd3a8;
-    --color-warning: #e8b068;
-    --color-destructive: #ff938d;
-    --color-focus: #8bb5ff;
-    --color-review: #e8b068;
-  --color-on-accent: #fffdf8;
-  --color-on-dark: #fffdf8;
-  --color-on-light: #171c24;
-  --color-rail: #171c24;
-  --color-rail-muted: #aeb7bf;
-  --color-rule: #cdd2d0;
-  --color-soft: #e3e7e4;
+  --color-background: #f3efe7;
+  --color-elevated: #fcfaf5;
+  --color-primary-text: #202622;
+  --color-secondary-text: #4f5a52;
+  --color-muted-text: #626d63;
+  --color-accent: #1f6657;
+  --color-accent-hover: #174a40;
+  --color-accent-active: #174a40;
+  --color-positive: #2f7058;
+  --color-warning: #815414;
+  --color-destructive: #a43d36;
+  --color-focus: #8a5a12;
+  --color-review: #62652e;
+  --color-on-accent: #fcfaf5;
+  --color-on-dark: #fcfaf5;
+  --color-on-light: #202622;
+  --color-rail: #202622;
+  --color-rail-muted: #c7d2c5;
+  --color-rule: #d5d2c8;
+  --color-soft: #e8e4d9;
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 12px;
@@ -47,19 +48,26 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-background: #11151b;
-    --color-elevated: #1b222a;
-    --color-primary-text: #f1f3ef;
-    --color-secondary-text: #c1c9ce;
-    --color-muted-text: #97a2aa;
-    --color-accent: #e08a4d;
-    --color-accent-hover: #f0aa73;
-    --color-accent-active: #f0aa73;
-    --color-on-accent: #11151b;
-    --color-rail: #0c1015;
-    --color-rail-muted: #a8b2ba;
-    --color-rule: #35404a;
-    --color-soft: #232c35;
+    --color-background: #171b18;
+    --color-elevated: #222a24;
+    --color-primary-text: #f4f1e9;
+    --color-secondary-text: #d0d8ce;
+    --color-muted-text: #aab8aa;
+    --color-accent: #6fc2a9;
+    --color-accent-hover: #91d5bd;
+    --color-accent-active: #91d5bd;
+    --color-positive: #78c7a6;
+    --color-warning: #e0b967;
+    --color-destructive: #f08b78;
+    --color-focus: #e0b967;
+    --color-review: #b6bc73;
+    --color-on-accent: #12251e;
+    --color-on-dark: #f4f1e9;
+    --color-on-light: #f4f1e9;
+    --color-rail: #101512;
+    --color-rail-muted: #c7d2c5;
+    --color-rule: #46534a;
+    --color-soft: #2d3a31;
   }
 }
 

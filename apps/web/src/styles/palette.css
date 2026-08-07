@@ -1,0 +1,265 @@
+/* Cedar Ledger component layer: mineral paper, charcoal structure, evergreen action, and saffron detail. */
+:root {
+  --color-highlight: #c58a24;
+  --workbench-rule: #c9c7bd;
+  --workbench-soft-rule: #e4e1d7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-highlight: #e0b967;
+    --workbench-rule: #46534a;
+    --workbench-soft-rule: #344139;
+  }
+}
+
+html,
+body {
+  background: var(--color-background);
+}
+
+body {
+  background:
+    radial-gradient(circle at 92% -12%, color-mix(in srgb, var(--color-highlight) 10%, transparent), transparent 28rem),
+    var(--color-background);
+}
+
+.app-nav {
+  background: var(--color-rail);
+}
+
+.app-nav__mark,
+.app-nav__link--active,
+.button--primary,
+.segmented:hover,
+.segmented--active {
+  background: var(--color-accent);
+}
+
+.app-nav__mark,
+.button--primary,
+.segmented:hover,
+.segmented--active {
+  color: var(--color-on-accent);
+}
+
+.app-nav__link--active {
+  color: var(--color-on-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+
+.app-nav__link:hover {
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.vault-switcher {
+  border-color: color-mix(in srgb, var(--color-rail-muted) 25%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.vault-switcher__error {
+  color: var(--color-destructive);
+}
+
+.local-status {
+  border-color: color-mix(in srgb, var(--color-positive) 48%, transparent);
+  background: color-mix(in srgb, var(--color-positive) 13%, transparent);
+}
+
+.local-status__dot {
+  background: var(--color-positive);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-positive) 18%, transparent);
+}
+
+.local-status--offline {
+  border-color: color-mix(in srgb, var(--color-warning) 52%, transparent);
+  background: color-mix(in srgb, var(--color-warning) 13%, transparent);
+}
+
+.local-status--offline .local-status__dot {
+  background: var(--color-warning);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-warning) 18%, transparent);
+}
+
+.panel__eyebrow,
+.section-heading a,
+.summary-stat--accent strong,
+.category-line__track span,
+.progress__bar {
+  color: var(--color-accent);
+}
+
+.category-line__track span,
+.progress__bar {
+  background: var(--color-accent);
+}
+
+.button--primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.button--secondary:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 11%, var(--color-elevated));
+  color: var(--color-accent-hover);
+}
+
+.button--ghost:hover:not(:disabled),
+.transaction-row:hover,
+.review__table tbody tr:hover {
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-elevated));
+}
+
+.dropzone {
+  border-color: color-mix(in srgb, var(--color-accent) 72%, var(--color-highlight));
+  background: color-mix(in srgb, var(--color-highlight) 7%, var(--color-elevated));
+}
+
+.dropzone:hover,
+.dropzone--active {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 11%, var(--color-elevated));
+}
+
+/* Major blocks breathe; dense rows intentionally remain joined like a ledger. */
+.period-bar {
+  margin-bottom: 16px;
+}
+
+.summary-strip,
+.sync-summary {
+  gap: 12px;
+  overflow: visible;
+  margin-bottom: 20px;
+  border: 0;
+  background: transparent;
+}
+
+.summary-stat,
+.sync-summary__card {
+  border: 1px solid var(--workbench-rule);
+  border-radius: 14px;
+  background: var(--color-elevated);
+}
+
+.summary-stat:first-child,
+.sync-summary__card:first-child {
+  background: color-mix(in srgb, var(--color-highlight) 12%, var(--color-elevated));
+}
+
+.summary-stat--accent strong {
+  color: var(--color-accent);
+}
+
+.transaction-list,
+.settings-list {
+  border-color: var(--workbench-rule);
+}
+
+.transaction-form {
+  border-top-color: var(--color-accent);
+}
+
+.review__table th {
+  background: var(--color-rail);
+  color: var(--color-on-dark);
+}
+
+.review__table tbody tr[data-row-status='duplicate_candidate'],
+.conflict-card {
+  border-color: color-mix(in srgb, var(--color-review) 45%, transparent);
+  background: color-mix(in srgb, var(--color-review) 9%, var(--color-elevated));
+}
+
+.chip:hover,
+.chip--active,
+.commit-count--duplicate,
+.review__table tbody tr[data-row-status='duplicate_candidate'] .status-badge {
+  border-color: color-mix(in srgb, var(--color-review) 48%, transparent);
+  background: color-mix(in srgb, var(--color-review) 12%, var(--color-elevated));
+  color: var(--color-review) !important;
+}
+
+.review__remember,
+.form-check {
+  color: var(--color-accent) !important;
+}
+
+.review__remember input,
+.form-check input {
+  accent-color: var(--color-accent);
+}
+
+.commit-bar--success {
+  border-color: var(--color-positive);
+  background: color-mix(in srgb, var(--color-positive) 10%, var(--color-elevated));
+}
+
+.commit-bar__title,
+.commit-count--accept,
+.amount--credit,
+.transaction-row__amount--credit {
+  color: var(--color-positive);
+}
+
+.sync-summary__card--warning strong,
+.commit-count--pending,
+.notice--warning {
+  color: var(--color-warning);
+}
+
+.commit-count--duplicate {
+  color: var(--color-review);
+}
+
+.notice--error,
+.commit-count--error,
+.field-error,
+.button--danger:hover:not(:disabled) {
+  color: var(--color-destructive);
+}
+
+.sync-boundary {
+  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--workbench-rule));
+  background: color-mix(in srgb, var(--color-highlight) 6%, var(--color-elevated));
+}
+
+.sync-transport {
+  border-color: color-mix(in srgb, var(--color-accent) 34%, var(--workbench-rule));
+}
+
+.sync-transport__state--synced {
+  background: color-mix(in srgb, var(--color-positive) 16%, transparent);
+  color: var(--color-positive);
+}
+
+.sync-transport__state--partial {
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+  color: var(--color-warning);
+}
+
+.sync-transport__state--failed {
+  background: color-mix(in srgb, var(--color-destructive) 14%, transparent);
+  color: var(--color-destructive);
+}
+
+.sync-transport__state--disconnected {
+  background: color-mix(in srgb, var(--color-muted-text) 14%, transparent);
+  color: var(--color-muted-text);
+}
+
+.skip-link {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+@media (max-width: 760px) {
+  .app-nav {
+    background: var(--color-rail);
+  }
+
+  .summary-strip,
+  .sync-summary {
+    gap: 10px;
+  }
+}

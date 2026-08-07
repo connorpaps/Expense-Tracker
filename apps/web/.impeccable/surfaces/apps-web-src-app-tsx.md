@@ -31,11 +31,11 @@ Proof comes from the live interface: legible values, explicit state, reviewable 
 
 ## Chosen direction
 
-**Editorial Instrument**, expressed as a precise desktop workbench with the visual grammar of a WPA national-park field poster: flattened ink-and-copper planes, strong compositional blocks, measured rules, confident type hierarchy, and data treated as the primary material. Assigned Impeccable direction seed: `82c6c935` (index 3, `posters-covers-sleeves-wpa-park-poster`). This is a compositional grammar, not a literal travel-poster illustration or a marketing treatment.
+**Cedar Ledger**, expressed as a precise desktop workbench with the visual grammar of a contemporary financial instrument: charcoal structure, mineral paper surfaces, evergreen action lines, saffron highlights, olive review states, and data treated as the primary material. This is a restrained palette-and-spacing grammar, not a literal illustration or marketing treatment.
 
 The first viewport should establish the current vault, local status, page purpose, and one obvious next action without a generic hero or repetitive card wall. Overview should feel like a readable instrument panel; Transactions and Import should become the most capable work surfaces; Settings and Sync should make privacy and system state calm and inspectable.
 
-The memorable moment is the **local truth line**: a compact, persistent context treatment that makes the active vault, local save state, and any pending/review attention understandable at a glance, then lets the data work—not decoration—carry the page.
+The memorable moment is the **depth line**: a compact, persistent context treatment that makes the active vault, local save state, and any pending/review attention understandable at a glance, then lets the data work—not decoration—carry the page.
 
 ## Constraints and finish criteria
 

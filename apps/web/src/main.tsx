@@ -6,6 +6,7 @@ import { HashRouter } from 'react-router-dom';
 import { App } from './App';
 import './styles/tokens.css';
 import './styles/global.css';
+import './styles/palette.css';
 
 configurePdfWorker(pdfWorkerUrl);
 

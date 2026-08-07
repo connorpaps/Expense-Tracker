@@ -1,10 +1,10 @@
 # @expense-tracker/design-tokens
 
-Single source of truth for the Expense Tracker semantic token system described in
-`specs/001-local-expense-tracker/contracts/design-system.md`: cool ink neutrals with
-one electric-copper accent, 12/16/24px spacing rhythm, 14/18/24px radius tiers, and
-the shared product vocabulary. Web values live in `src/web/`; iOS values are emitted
-as Swift in `src/ios/`.
+Single source of truth for the Expense Tracker semantic token vocabulary described in
+`specs/001-local-expense-tracker/contracts/design-system.md`: modern Cedar Ledger web
+surfaces with charcoal structure and evergreen action, 12/16/24px spacing rhythm, 14/18/24px radius
+tiers, and the shared product vocabulary. Web values live in `src/web/`; iOS values are
+emitted as Swift using native semantic colors.
 
 **Version**: 0.1.0 (see `CHANGELOG` entries below)
 
@@ -12,7 +12,7 @@ as Swift in `src/ios/`.
 
 ### 0.1.0 — 2026-08-04
 
-- Semantic color tokens (background, elevated, primary/secondary/muted text, accent,
+- Semantic color tokens (mineral background, elevated surface, charcoal primary/secondary/muted text, evergreen accent,
   positive, warning, destructive, focus, review-needed).
 - Spacing, radius, type-scale, and motion tokens.
 - Contrast validation helpers with WCAG AA assertions in tests.
